@@ -70,7 +70,7 @@ export default async function handler(req, res) {
     }
 
     const response = await client.responses.create({
-      model: process.env.OPENAI_MODEL || "gpt-5.5",
+      model: process.env.OPENAI_MODEL || "gpt-5-mini",
       instructions: readSystemPrompt(),
       input: messages,
     });
