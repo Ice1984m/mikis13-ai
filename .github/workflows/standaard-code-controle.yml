@@ -1,0 +1,117 @@
+name: Standaard codecontrole
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: standaard-codecontrole-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  controle:
+    name: Code installeren en testen
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Repository ophalen
+        uses: actions/checkout@v5
+
+      - name: Node.js installeren
+        if: ${{ hashFiles('package.json') != '' }}
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Gelekte sleutels controleren
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          if grep -RInE \
+            'sk-proj-[A-Za-z0-9_-]{20,}|cfut_[A-Za-z0-9_-]{20,}|BEGIN (RSA|OPENSSH|EC) PRIVATE KEY' \
+            --exclude-dir=.git \
+            --exclude-dir=node_modules \
+            --exclude=package-lock.json \
+            .
+          then
+            echo "::error::Mogelijke geheime sleutel gevonden"
+            exit 1
+          fi
+
+      - name: Projectstructuur controleren
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          if [ -d .github/workflows ]; then
+            if grep -RIn $'\t' .github/workflows; then
+              echo "::error::Tabs gevonden in workflow YAML"
+              exit 1
+            fi
+          fi
+
+          if [ -f package.json ]; then
+            node -e "JSON.parse(require('fs').readFileSync('package.json','utf8'))"
+          fi
+
+      - name: NPM-pakketten installeren
+        if: ${{ hashFiles('package.json') != '' }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          if [ -f package-lock.json ]; then
+            npm ci --include=optional --no-audit --no-fund
+          else
+            npm install --include=optional --no-audit --no-fund
+          fi
+
+      - name: Beschikbare controles uitvoeren
+        if: ${{ hashFiles('package.json') != '' }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          SCRIPTS="$(
+            node -e \
+              "const p=require('./package.json'); console.log(Object.keys(p.scripts || {}).join(' '))"
+          )"
+
+          for TAAK in check lint test build; do
+            if echo " $SCRIPTS " | grep -q " $TAAK "; then
+              echo "Uitvoeren: npm run $TAAK"
+              npm run "$TAAK"
+            else
+              echo "Geen script '$TAAK'; overgeslagen"
+            fi
+          done
+
+      - name: JavaScript-syntaxis controleren
+        if: ${{ hashFiles('package.json') != '' }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          while IFS= read -r -d '' BESTAND; do
+            echo "Controleren: $BESTAND"
+            node --check "$BESTAND"
+          done < <(
+            find . \
+              -type f \
+              -name "*.js" \
+              -not -path "./node_modules/*" \
+              -not -path "./.git/*" \
+              -print0
+          )
+
+      - name: Controle voltooid
+        run: echo "✅ Standaard codecontrole geslaagd"
