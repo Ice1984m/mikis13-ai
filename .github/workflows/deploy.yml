@@ -2,9 +2,7 @@ name: Mikis13 AI automatisch publiceren
 
 on:
   push:
-    branches:
-      - main
-
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -12,7 +10,7 @@ permissions:
 
 concurrency:
   group: mikis13-ai-production
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   deploy:
@@ -23,7 +21,6 @@ jobs:
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      CLOUDFLARE_AI_API_TOKEN: ${{ secrets.CLOUDFLARE_AI_API_TOKEN }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
     steps:
@@ -33,55 +30,36 @@ jobs:
       - name: Node.js installeren
         uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "20"
 
-      - name: Pakketten installeren
-        run: npm install --no-audit --no-fund
+      - name: Omgeving tonen
+        run: |
+          node --version
+          npm --version
 
-      - name: Wrangler-versie controleren
-        run: npx wrangler --version --no-audit --no-fund
+      - name: Dependencies installeren
+        run: npm install --include=optional --no-audit --no-fund
 
-      - name: Wrangler-versie controleren
-        run: echo "Wrangler draait uitsluitend in GitHub Actions." --no-audit --no-fund
-
-      - name: Wrangler-versie controleren
-        run: echo "Wrangler draait uitsluitend in GitHub Actions." --no-audit --no-fund
-
-      - name: Wrangler-versie controleren
-        run: echo "Wrangler draait uitsluitend in GitHub Actions." --no-audit --no-fund
-
-      - name: Wrangler-versie controleren
-        run: echo "Wrangler draait uitsluitend in GitHub Actions." --no-audit --no-fund
-
-      - name: Wrangler-versie controleren
-        run: echo "Wrangler draait uitsluitend in GitHub Actions."
+      - name: Wrangler controleren
+        run: npx --no-install wrangler --version
 
       - name: JavaScript controleren
-        run: npm run check
+        run: node --check worker.js
 
-      - name: Verplichte Cloudflare-secrets controleren
+      - name: Cloudflare-secrets controleren
         run: |
-          test -n "$CLOUDFLARE_API_TOKEN" || {
-            echo "::error::CLOUDFLARE_API_TOKEN ontbreekt."
-            exit 1
-          }
+          [ -n "$CLOUDFLARE_API_TOKEN" ] || { echo "::error::CLOUDFLARE_API_TOKEN ontbreekt"; exit 1; }
+          [ -n "$CLOUDFLARE_ACCOUNT_ID" ] || { echo "::error::CLOUDFLARE_ACCOUNT_ID ontbreekt"; exit 1; }
+          echo "Cloudflare-secrets OK"
 
-          test -n "$CLOUDFLARE_ACCOUNT_ID" || {
-            echo "::error::CLOUDFLARE_ACCOUNT_ID ontbreekt."
-            exit 1
-          }
+      - name: Worker publiceren
+        run: npx --no-install wrangler deploy
 
-      - name: Worker eerst publiceren
-        run: npx wrangler deploy
-
-      - name: OpenAI-secret opslaan
+      - name: OpenAI-secret in Worker instellen
         if: ${{ env.OPENAI_API_KEY != '' }}
         run: |
-          printf '%s' "$OPENAI_API_KEY" |
-            npx wrangler secret put OPENAI_API_KEY
+          printf '%s' "$OPENAI_API_KEY" | npx --no-install wrangler secret put OPENAI_API_KEY
 
-      - name: Zonder OpenAI-key afronden
+      - name: OpenAI-secret ontbreekt (melding)
         if: ${{ env.OPENAI_API_KEY == '' }}
-        run: |
-          echo "Worker is online."
-          echo "OPENAI_API_KEY kan later worden toegevoegd."
+        run: echo "Worker gepubliceerd zonder OPENAI_API_KEY."
