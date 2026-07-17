@@ -1,0 +1,388 @@
+name: Mikis13
+
+on:
+  workflow_dispatch:
+    inputs:
+      uitgebreide_tests:
+        description: Uitgebreide tests uitvoeren
+        required: true
+        default: true
+        type: boolean
+
+  push:
+    branches:
+      - main
+    paths:
+      - "android-app/**"
+      - "src/**"
+      - "public/**"
+      - "worker.js"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/mikis13.yml"
+
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  actions: read
+  security-events: write
+  id-token: write
+  attestations: write
+
+concurrency:
+  group: mikis13-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  repository-controle:
+    name: Repository controleren
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Repository ophalen
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Structuur controleren
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          test -d .github/workflows
+          test -f .github/workflows/mikis13.yml
+          test -f .github/workflows/android-apk.yml
+          test -f .github/workflows/deploy.yml
+
+          echo "✅ Basisstructuur aanwezig"
+
+      - name: Verboden geheime bestanden controleren
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          GEVONDEN="$(
+            find . \
+              -type f \
+              \( \
+                -name ".env" -o \
+                -name "*.jks" -o \
+                -name "*.keystore" -o \
+                -name "*.p12" -o \
+                -name "*.pfx" -o \
+                -name "*.pem" -o \
+                -name "*.key" \
+              \) \
+              -not -path "./.git/*" \
+              -not -path "./node_modules/*" \
+              -print
+          )"
+
+          if [ -n "$GEVONDEN" ]; then
+            echo "::error::Verboden geheim bestand gevonden:"
+            echo "$GEVONDEN"
+            exit 1
+          fi
+
+          echo "✅ Geen geheime bestanden aangetroffen"
+
+      - name: Mogelijke API-sleutels controleren
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          if grep -RInE \
+            'sk-proj-[A-Za-z0-9_-]{20,}|cfut_[A-Za-z0-9_-]{20,}|BEGIN (RSA|EC|OPENSSH) PRIVATE KEY' \
+            --exclude-dir=.git \
+            --exclude-dir=node_modules \
+            --exclude=package-lock.json \
+            .
+          then
+            echo "::error::Mogelijke API-sleutel gevonden"
+            exit 1
+          fi
+
+          echo "✅ Geen zichtbare API-sleutels gevonden"
+
+  node-controle:
+    name: JavaScript en Node.js controleren
+    needs:
+      - repository-controle
+
+    if: ${{ hashFiles('package.json') != '' }}
+
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Repository ophalen
+        uses: actions/checkout@v6
+
+      - name: Node.js installeren
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Dependencies installeren
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          if [ -f package-lock.json ]; then
+            npm ci \
+              --include=optional \
+              --no-audit \
+              --no-fund
+          else
+            npm install \
+              --include=optional \
+              --no-audit \
+              --no-fund
+          fi
+
+      - name: JavaScript-syntaxis controleren
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          while IFS= read -r -d '' FILE; do
+            echo "Controleren: $FILE"
+            node --check "$FILE"
+          done < <(
+            find . \
+              -type f \
+              -name "*.js" \
+              -not -path "./node_modules/*" \
+              -not -path "./.git/*" \
+              -print0
+          )
+
+      - name: Beschikbare npm-tests uitvoeren
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          SCRIPTS="$(
+            node -e '
+              const p = require("./package.json");
+              console.log(Object.keys(p.scripts || {}).join(" "));
+            '
+          )"
+
+          for TAAK in check lint test build; do
+            if echo " $SCRIPTS " |
+              grep -q " $TAAK "
+            then
+              echo "npm run $TAAK"
+              npm run "$TAAK"
+            else
+              echo "Geen npm-script '$TAAK'; overgeslagen."
+            fi
+          done
+
+  android-controle:
+    name: Android APK bouwen en testen
+    needs:
+      - repository-controle
+
+    if: ${{ hashFiles('android-app/app/build.gradle') != '' }}
+
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    defaults:
+      run:
+        working-directory: android-app
+
+    steps:
+      - name: Repository ophalen
+        uses: actions/checkout@v6
+
+      - name: Java 17 installeren
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Gradle installeren
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: "8.10.2"
+
+      - name: Android-project controleren
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          test -f settings.gradle
+          test -f build.gradle
+          test -f app/build.gradle
+          test -f app/src/main/AndroidManifest.xml
+          test -f app/src/main/java/com/mikis13/ai/MainActivity.java
+
+          grep -q \
+            "android.permission.INTERNET" \
+            app/src/main/AndroidManifest.xml
+
+          grep -q \
+            "package com.mikis13.ai" \
+            app/src/main/java/com/mikis13/ai/MainActivity.java
+
+          echo "✅ Android-projectstructuur geldig"
+
+      - name: Android lint uitvoeren
+        if: ${{ inputs.uitgebreide_tests != false }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          gradle \
+            --no-daemon \
+            --stacktrace \
+            :app:lintDebug
+
+      - name: Android unit tests uitvoeren
+        if: ${{ inputs.uitgebreide_tests != false }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          gradle \
+            --no-daemon \
+            --stacktrace \
+            :app:testDebugUnitTest
+
+      - name: APK bouwen
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          gradle \
+            --no-daemon \
+            --stacktrace \
+            :app:assembleDebug
+
+      - name: APK werkelijk valideren
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+
+          test -f "$APK" || {
+            echo "::error::APK ontbreekt"
+            exit 1
+          }
+
+          SIZE="$(stat -c%s "$APK")"
+
+          if [ "$SIZE" -lt 4096 ]; then
+            echo "::error::APK is leeg of beschadigd: $SIZE bytes"
+            exit 1
+          fi
+
+          echo "APK-grootte: $SIZE bytes"
+
+          unzip -t "$APK"
+
+          BUILD_TOOLS="$(
+            find "$ANDROID_HOME/build-tools" \
+              -mindepth 1 \
+              -maxdepth 1 \
+              -type d |
+            sort -V |
+            tail -n 1
+          )"
+
+          test -n "$BUILD_TOOLS"
+          test -x "$BUILD_TOOLS/apksigner"
+
+          "$BUILD_TOOLS/apksigner" verify \
+            --verbose \
+            --print-certs \
+            "$APK"
+
+          if [ -x "$BUILD_TOOLS/aapt" ]; then
+            "$BUILD_TOOLS/aapt" dump badging "$APK" |
+              tee /tmp/apk-info.txt
+
+            grep -q \
+              "package: name='com.mikis13.ai'" \
+              /tmp/apk-info.txt
+          fi
+
+          cp "$APK" ../mikis13-ai-latest.apk
+
+          cd ..
+
+          sha256sum mikis13-ai-latest.apk \
+            > mikis13-ai-latest.apk.sha256
+
+          echo "APK_SIZE=$SIZE" >> "$GITHUB_ENV"
+
+      - name: APK als artifact bewaren
+        uses: actions/upload-artifact@v4
+        with:
+          name: mikis13-ai-apk
+          path: |
+            mikis13-ai-latest.apk
+            mikis13-ai-latest.apk.sha256
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 0
+
+      - name: APK-herkomst vastleggen
+        if: ${{ github.event_name != 'pull_request' }}
+        uses: actions/attest-build-provenance@v3
+        with:
+          subject-path: mikis13-ai-latest.apk
+
+  eindcontrole:
+    name: Mikis13 eindcontrole
+    needs:
+      - repository-controle
+      - node-controle
+      - android-controle
+
+    if: always()
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Resultaten beoordelen
+        shell: bash
+        env:
+          REPOSITORY_RESULT: ${{ needs.repository-controle.result }}
+          NODE_RESULT: ${{ needs.node-controle.result }}
+          ANDROID_RESULT: ${{ needs.android-controle.result }}
+        run: |
+          set -Eeuo pipefail
+
+          echo "Repository: $REPOSITORY_RESULT"
+          echo "Node: $NODE_RESULT"
+          echo "Android: $ANDROID_RESULT"
+
+          for RESULTAAT in \
+            "$REPOSITORY_RESULT" \
+            "$NODE_RESULT" \
+            "$ANDROID_RESULT"
+          do
+            case "$RESULTAAT" in
+              success|skipped)
+                ;;
+              *)
+                echo "::error::Minstens één controle is mislukt"
+                exit 1
+                ;;
+            esac
+          done
+
+          echo "======================================"
+          echo "✅ MIKIS13-WORKFLOW VOLLEDIG GESLAAGD"
+          echo "======================================"
