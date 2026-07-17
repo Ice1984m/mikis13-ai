@@ -113,7 +113,6 @@ jobs:
     needs:
       - repository-controle
 
-    if: ${{ hashFiles('package.json') != '' }}
 
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -190,7 +189,6 @@ jobs:
     needs:
       - repository-controle
 
-    if: ${{ hashFiles('android-app/app/build.gradle') != '' }}
 
     runs-on: ubuntu-latest
     timeout-minutes: 35
