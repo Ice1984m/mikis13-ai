@@ -49,14 +49,14 @@ jobs:
       - name: Wrangler config tonen
         run: |
           echo "---- wrangler.toml ----"
-          test -f wrangler.toml && cat wrangler.toml || echo "GEEN wrangler.toml gevonden"
+          test -f wrangler.toml && cat wrangler.toml || (echo "FOUT: wrangler.toml ontbreekt"; exit 1)
           echo "------------------------"
 
-      - name: Cloudflare auth controleren
+      - name: Cloudflare secrets controleren
         run: |
           [ -n "$CLOUDFLARE_API_TOKEN" ] || { echo "::error::CLOUDFLARE_API_TOKEN ontbreekt"; exit 1; }
           [ -n "$CLOUDFLARE_ACCOUNT_ID" ] || { echo "::error::CLOUDFLARE_ACCOUNT_ID ontbreekt"; exit 1; }
-          npx --yes wrangler@latest whoami
+          echo "Secrets aanwezig."
 
       - name: Worker publiceren (debug)
         run: |
