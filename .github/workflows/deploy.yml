@@ -16,6 +16,5 @@ jobs:
         with:
           node-version: "22"
       - run: npm install --include=optional --no-audit --no-fund
-      - run: npx --yes wrangler@latest --version
       - run: node --check worker.js
       - run: npx --yes wrangler@latest deploy --config wrangler.toml
