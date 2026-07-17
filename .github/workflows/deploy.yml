@@ -25,10 +25,10 @@ jobs:
 
     steps:
       - name: Repository ophalen
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Node.js installeren
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: "22"
 
@@ -41,24 +41,32 @@ jobs:
         run: npm install --include=optional --no-audit --no-fund
 
       - name: Wrangler controleren
-        run: npx --no-install wrangler --version
+        run: npx --yes wrangler@latest --version
 
       - name: JavaScript controleren
         run: node --check worker.js
 
-      - name: Cloudflare-secrets controleren
+      - name: Wrangler config tonen
+        run: |
+          echo "---- wrangler.toml ----"
+          test -f wrangler.toml && cat wrangler.toml || echo "GEEN wrangler.toml gevonden"
+          echo "------------------------"
+
+      - name: Cloudflare auth controleren
         run: |
           [ -n "$CLOUDFLARE_API_TOKEN" ] || { echo "::error::CLOUDFLARE_API_TOKEN ontbreekt"; exit 1; }
           [ -n "$CLOUDFLARE_ACCOUNT_ID" ] || { echo "::error::CLOUDFLARE_ACCOUNT_ID ontbreekt"; exit 1; }
-          echo "Cloudflare-secrets OK"
+          npx --yes wrangler@latest whoami
 
-      - name: Worker publiceren
-        run: npx --no-install wrangler deploy
+      - name: Worker publiceren (debug)
+        run: |
+          set -x
+          npx --yes wrangler@latest deploy --config wrangler.toml --verbose
 
       - name: OpenAI-secret in Worker instellen
         if: ${{ env.OPENAI_API_KEY != '' }}
         run: |
-          printf '%s' "$OPENAI_API_KEY" | npx --no-install wrangler secret put OPENAI_API_KEY
+          printf '%s' "$OPENAI_API_KEY" | npx --yes wrangler@latest secret put OPENAI_API_KEY
 
       - name: OpenAI-secret ontbreekt (melding)
         if: ${{ env.OPENAI_API_KEY == '' }}
