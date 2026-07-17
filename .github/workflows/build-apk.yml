@@ -1,0 +1,86 @@
+name: Build and Release Mikis13 AI APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Bubblewrap
+        run: npm install -g @bubblewrap/cli
+
+      - name: Download App Icon
+        run: |
+          curl -sL "https://img.icons8.com/fluent/512/000000/artificial-intelligence.png" -o icon.png
+
+      - name: Configure Bubblewrap
+        run: |
+          bubblewrap config --jdkPath "$JAVA_HOME" --androidSdkPath "$ANDROID_SDK_ROOT"
+
+      - name: Generate Keystore
+        run: |
+          keytool -genkeypair -v \
+            -keystore android.keystore \
+            -alias mikis13-key \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -storepass password \
+            -keypass password \
+            -dname "CN=mikis13, OU=mikis13, O=mikis13, L=Amsterdam, S=NH, C=NL"
+
+      - name: Build TWA APK
+        env:
+          TWA_PASSWORD: "password"
+        run: |
+          bubblewrap build --skipPrompt
+
+      - name: Rename and Prepare APK
+        run: |
+          if [ -f app-release-signed.apk ]; then
+            mv app-release-signed.apk mikis13-ai.apk
+          elif [ -f build/outputs/apk/release/app-release.apk ]; then
+            mv build/outputs/apk/release/app-release.apk mikis13-ai.apk
+          else
+            echo "Signed APK not found in root, searching..."
+            find . -name "*.apk"
+            APK_PATH=$(find . -name "*signed.apk" -o -name "*release.apk" | head -n 1)
+            if [ -n "$APK_PATH" ]; then
+              mv "$APK_PATH" mikis13-ai.apk
+            else
+              echo "Error: No APK found!"
+              exit 1
+            fi
+          fi
+
+      - name: Create or Update GitHub Release with APK
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Use 'gh' tool to create or update the release
+          gh release create latest ./mikis13-ai.apk \
+            --title "Laatste APK Versie" \
+            --notes "Download de nieuwste Mikis13 AI APK hier rechtstreeks op je Android apparaat." \
+            --clobber || \
+          gh release upload latest ./mikis13-ai.apk --clobber

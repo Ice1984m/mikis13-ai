@@ -177,8 +177,9 @@ button:disabled {
 <header>
     <div class="header-inner">
         <h1>Mikis13 AI</h1>
-        <div style="display: flex; align-items: center; gap: 8px;">
+        <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end;">
             <span id="install-btn" style="display: none; cursor: pointer; padding: 6px 12px; border-radius: 999px; color: #fff; background: #2563eb; font-size: 12px; font-weight: bold; border: 1px solid rgba(255,255,255,.2); white-space: nowrap;">📱 Installeer App</span>
+            <a href="https://github.com/Ice1984m/mikis13-ai/releases/latest/download/mikis13-ai.apk" style="text-decoration: none; padding: 6px 12px; border-radius: 999px; color: #fff; background: #ff0050; font-size: 12px; font-weight: bold; border: 1px solid rgba(255,255,255,.2); white-space: nowrap;">📥 Download APK</a>
             <span id="status">● online</span>
         </div>
     </div>

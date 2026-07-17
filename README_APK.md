@@ -24,6 +24,17 @@ Dankzij de Progressive Web App (PWA) ondersteuning kun je de app met één klik 
 
 ---
 
+## Methode 1.5: Direct downloaden van GitHub (Rechtstreeks APK) 📥
+
+Dankzij de nieuwe geautomatiseerde GitHub Actions workflow wordt er bij elke update automatisch een up-to-date APK-bestand voor Android gebouwd en gepubliceerd.
+
+### Hoe direct te installeren:
+1. Klik op de website op de knop **"📥 Download APK (Rechtstreeks)"** of ga rechtstreeks naar de [Laatste GitHub Release APK downloadlink](https://github.com/Ice1984m/mikis13-ai/releases/latest/download/mikis13-ai.apk).
+2. Sla het bestand `mikis13-ai.apk` op je Android-apparaat op.
+3. Volg de stappen in **Methode 3** hieronder om het bestand op je telefoon te installeren.
+
+---
+
 ## Methode 2: Zelf een native Android APK-bestand bouwen 🛠️
 
 Als je een fysiek `.apk`-bestand wilt hebben om te delen of te installeren, kun je dit heel eenvoudig en gratis genereren.

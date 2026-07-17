@@ -1,0 +1,31 @@
+{
+  "packageId": "com.mikis13_ai.twa",
+  "host": "mikis13-ai.pages.dev",
+  "name": "Mikis13 AI",
+  "launcherName": "Mikis13 AI",
+  "themeColor": "#2563eb",
+  "backgroundColor": "#020617",
+  "navigationColor": "#020617",
+  "navigationColorDark": "#020617",
+  "navigationDividerColor": "#020617",
+  "navigationDividerColorDark": "#020617",
+  "display": "standalone",
+  "orientation": "portrait",
+  "scope": "/",
+  "startUrl": "/",
+  "description": "Digitale Mikis13 AI-assistent",
+  "iconPath": "./icon.png",
+  "maskableIconPath": "./icon.png",
+  "monochromeIconPath": "./icon.png",
+  "versionCode": 1,
+  "versionName": "1.0.0",
+  "statusBarColor": "#020617",
+  "signingKey": {
+    "path": "./android.keystore",
+    "alias": "mikis13-key"
+  },
+  "client": [
+    "play"
+  ],
+  "enableNotifications": false
+}
