@@ -1,0 +1,113 @@
+name: Mikis13 AI Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "android-app/**"
+      - ".github/workflows/android-apk.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mikis13-ai-android-apk
+  cancel-in-progress: true
+
+jobs:
+  build-apk:
+    name: Android APK bouwen
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    defaults:
+      run:
+        working-directory: android-app
+
+    steps:
+      - name: Repository ophalen
+        uses: actions/checkout@v5
+
+      - name: Java 17 installeren
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Gradle installeren
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
+
+      - name: Projectbestanden controleren
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          test -f settings.gradle
+          test -f build.gradle
+          test -f app/build.gradle
+          test -f app/src/main/AndroidManifest.xml
+          test -f app/src/main/java/com/mikis13/ai/MainActivity.java
+
+      - name: APK bouwen
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          gradle --no-daemon --stacktrace :app:assembleDebug
+
+      - name: APK controleren
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+
+          test -f "$APK"
+
+          SIZE="$(stat -c%s "$APK")"
+
+          if [ "$SIZE" -lt 100000 ]; then
+            echo "::error::APK is onverwacht klein: $SIZE bytes"
+            exit 1
+          fi
+
+          cp "$APK" "../mikis13-ai-latest.apk"
+
+          echo "APK_SIZE=$SIZE" >> "$GITHUB_ENV"
+
+      - name: APK als artifact bewaren
+        uses: actions/upload-artifact@v4
+        with:
+          name: mikis13-ai-apk
+          path: mikis13-ai-latest.apk
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: GitHub Release maken
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          gh release delete latest-apk \
+            --repo "${{ github.repository }}" \
+            --cleanup-tag \
+            --yes 2>/dev/null || true
+
+          gh release create latest-apk \
+            mikis13-ai-latest.apk \
+            --repo "${{ github.repository }}" \
+            --target "${{ github.sha }}" \
+            --title "Mikis13 AI Android APK" \
+            --notes "Automatisch gebouwde Mikis13 AI Android-app. APK-grootte: $APK_SIZE bytes."
+
+      - name: Build voltooid
+        run: |
+          echo "✅ APK succesvol gebouwd"
+          echo "Download:"
+          echo "https://github.com/${{ github.repository }}/releases/download/latest-apk/mikis13-ai-latest.apk"

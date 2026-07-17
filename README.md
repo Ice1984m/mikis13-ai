@@ -28,3 +28,13 @@ https://github.com/Ice1984m/mikis13-ai
 Iedere push naar de main-branch start automatisch de workflow:
 
 .github/workflows/deploy.yml
+
+<!-- MIKIS13-APK-START -->
+
+## Android-app downloaden
+
+[![Download Mikis13 AI APK](https://img.shields.io/badge/Download-Android_APK-brightgreen?style=for-the-badge&logo=android)](https://github.com/Ice1984m/mikis13-ai/releases/download/latest-apk/mikis13-ai-latest.apk)
+
+De APK wordt automatisch opnieuw gebouwd wanneer de Android-code verandert.
+
+<!-- MIKIS13-APK-END -->
