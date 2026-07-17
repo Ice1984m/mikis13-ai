@@ -12,5 +12,10 @@
   "type": "module",
   "dependencies": {
     "openai": "^6.47.0"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Ice1984m/mikis13-ai.git"
   }
 }
