@@ -1,0 +1,20 @@
+<!doctype html><html><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>AI Bot</title>
+<style>body{font-family:Arial;background:#0f1117;color:#fff;padding:20px}input,button{width:100%;padding:10px;margin:6px 0;border-radius:8px;border:1px solid #2a3042;background:#171b26;color:#fff}button{background:#ff0050;border:none;font-weight:700}pre{background:#171b26;padding:10px;border-radius:8px;white-space:pre-wrap}</style>
+</head><body>
+<h2>AI Bot</h2>
+<input id="msg" placeholder="Typ je bericht..." />
+<button id="send">Verstuur</button>
+<pre id="out">Klaar.</pre>
+<script>
+document.getElementById('send').onclick=async()=>{
+ const msg=document.getElementById('msg').value.trim(); if(!msg)return;
+ const out=document.getElementById('out'); out.textContent='Bezig...';
+ try{
+   const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg})});
+   const j=await r.json(); out.textContent=j.reply||j.error||'Geen antwoord';
+ }catch(e){ out.textContent='API error: '+e.message; }
+}
+</script>
+</body></html>
