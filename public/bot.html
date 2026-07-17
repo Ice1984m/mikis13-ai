@@ -1,9 +1,20 @@
 <!doctype html><html><head>
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>AI Bot</title>
-<style>body{font-family:Arial;background:#0f1117;color:#fff;padding:20px}input,button{width:100%;padding:10px;margin:6px 0;border-radius:8px;border:1px solid #2a3042;background:#171b26;color:#fff}button{background:#ff0050;border:none;font-weight:700}pre{background:#171b26;padding:10px;border-radius:8px;white-space:pre-wrap}</style>
+<link rel="manifest" href="manifest.json" />
+<style>
+  body{font-family:Arial;background:#0f1117;color:#fff;padding:20px}
+  input,button{width:100%;padding:10px;margin:6px 0;border-radius:8px;border:1px solid #2a3042;background:#171b26;color:#fff}
+  button{background:#ff0050;border:none;font-weight:700}
+  pre{background:#171b26;padding:10px;border-radius:8px;white-space:pre-wrap}
+  .header-container{display:flex;justify-content:space-between;align-items:center}
+  .btn-install{display:none;width:auto;padding:6px 12px;background:#2563eb;color:#fff;border-radius:8px;border:none;font-weight:700;cursor:pointer;font-size:12px}
+</style>
 </head><body>
-<h2>AI Bot</h2>
+<div class="header-container">
+  <h2>AI Bot</h2>
+  <button id="install-btn" class="btn-install">📱 Installeer App</button>
+</div>
 <input id="msg" placeholder="Typ je bericht..." />
 <button id="send">Verstuur</button>
 <pre id="out">Klaar.</pre>
@@ -15,6 +26,39 @@ document.getElementById('send').onclick=async()=>{
    const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg})});
    const j=await r.json(); out.textContent=j.reply||j.error||'Geen antwoord';
  }catch(e){ out.textContent='API error: '+e.message; }
+}
+
+// Register Service Worker
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  });
+}
+
+let deferredPrompt;
+const installBtn = document.getElementById("install-btn");
+
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  if (installBtn) {
+    installBtn.style.display = "inline-block";
+  }
+});
+
+if (installBtn) {
+  installBtn.addEventListener("click", async () => {
+    if (!deferredPrompt) {
+      alert("Om deze app op je startscherm te installeren, tik op de 3 puntjes in de browser (of het deel-icoon op iOS) en kies 'Toevoegen aan startscherm' of 'App installeren'.");
+      return;
+    }
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === "accepted") {
+      installBtn.style.display = "none";
+    }
+    deferredPrompt = null;
+  });
 }
 </script>
 </body></html>
