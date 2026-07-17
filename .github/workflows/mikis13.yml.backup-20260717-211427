@@ -249,6 +249,7 @@ jobs:
           )"
 
           test -n "$APKSIGNER"
+          chmod +x "$APKSIGNER"
 
           "$APKSIGNER" verify \
             --verbose \
@@ -264,6 +265,7 @@ jobs:
           )"
 
           if [ -n "$AAPT" ]; then
+            chmod +x "$AAPT"
 
             "$AAPT" dump badging "$APK" |
               tee /tmp/apk-info.txt
