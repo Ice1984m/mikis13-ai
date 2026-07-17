@@ -1,55 +1,171 @@
 name: Mikis13 AI automatisch publiceren
+
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: mikis13-ai-cloudflare
+  cancel-in-progress: true
 
 jobs:
   deploy:
+    name: Cloudflare publiceren
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - name: Repository ophalen
+        uses: actions/checkout@v5
+
+      - name: Node.js installeren
+        uses: actions/setup-node@v5
         with:
           node-version: "22"
-      - run: npm install --include=optional --no-audit --no-fund
-      - run: node --check worker.js
-      - run: npx --yes wrangler@latest deploy --config wrangler.toml
+          cache: npm
 
-      - name: Build Android App (APK) via PWABuilder
-        uses: PWABuilder/pwabuilder-action@v1
-        with:
-          url: "https://mikis13-ai.ice1984m.workers.dev"
-          platforms: "android"
-          output-directory: "action-output"
-
-      - name: Extract APK
+      - name: Secrets controleren
+        shell: bash
         run: |
-          mkdir -p extracted
-          unzip action-output/*.zip -d extracted || true
-          find extracted -name "*.apk" -exec cp {} ./mikis13-ai.apk \;
-          if [ ! -f ./mikis13-ai.apk ]; then
-            echo "Geen APK gevonden in PWABuilder-output zip!"
+          set -Eeuo pipefail
+
+          fout=0
+
+          for naam in \
+            CLOUDFLARE_API_TOKEN \
+            CLOUDFLARE_ACCOUNT_ID \
+            OPENAI_API_KEY
+          do
+            if [ -z "${!naam:-}" ]; then
+              echo "::error::$naam ontbreekt"
+              fout=1
+            else
+              echo "$naam is ingesteld"
+            fi
+          done
+
+          [ "$fout" -eq 0 ]
+
+      - name: Project controleren
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          test -f package.json || {
+            echo "::error::package.json ontbreekt"
+            exit 1
+          }
+
+          test -f wrangler.toml || {
+            echo "::error::wrangler.toml ontbreekt"
+            exit 1
+          }
+
+          if [ -f worker.js ]; then
+            node --check worker.js
+          elif [ -f src/worker.js ]; then
+            node --check src/worker.js
+          else
+            echo "::error::Geen worker.js gevonden"
             exit 1
           fi
 
-      - name: Publish APK to GitHub Release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pakketten installeren
+        shell: bash
         run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          gh release delete latest --yes || true
-          git tag -d latest || true
-          git push origin :refs/tags/latest || true
-          gh release create latest ./mikis13-ai.apk \
-            --title "Mikis13 AI Mobiele App (APK)" \
-            --notes "Klik op de downloadknop hieronder om de nieuwste Mikis13 AI-app direct te downloaden en te installeren op je Android-apparaat." \
-            --target main
+          set -Eeuo pipefail
 
+          if [ -f package-lock.json ]; then
+            npm ci --include=optional --no-audit --no-fund
+          else
+            npm install --include=optional --no-audit --no-fund
+          fi
+
+      - name: OpenAI-secret in Cloudflare instellen
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          for poging in 1 2 3; do
+            echo "Secret-poging $poging van 3"
+
+            if printf '%s' "$OPENAI_API_KEY" |
+              npx --yes wrangler@latest secret put OPENAI_API_KEY \
+                --config wrangler.toml
+            then
+              echo "OpenAI-secret ingesteld"
+              exit 0
+            fi
+
+            if [ "$poging" -lt 3 ]; then
+              sleep $((poging * 15))
+            fi
+          done
+
+          echo "::error::OpenAI-secret instellen mislukt"
+          exit 1
+
+      - name: Cloudflare publiceren
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          for poging in 1 2 3; do
+            echo "Deploy-poging $poging van 3"
+
+            if npx --yes wrangler@latest deploy \
+              --config wrangler.toml
+            then
+              echo "Cloudflare-deploy geslaagd"
+              exit 0
+            fi
+
+            if [ "$poging" -lt 3 ]; then
+              sleep $((poging * 20))
+            fi
+          done
+
+          echo "::error::Cloudflare-deploy mislukt"
+          exit 1
+
+      - name: Website controleren
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          URL="https://mikis13-ai.ice1984m.workers.dev"
+
+          for poging in $(seq 1 20); do
+            code="$(
+              curl \
+                --location \
+                --silent \
+                --show-error \
+                --output /tmp/site \
+                --write-out '%{http_code}' \
+                "$URL/" || true
+            )"
+
+            echo "Controle $poging/20: HTTP $code"
+
+            if [ "$code" = "200" ]; then
+              echo "Website is online"
+              exit 0
+            fi
+
+            sleep 15
+          done
+
+          echo "::error::Website niet bereikbaar"
+          exit 1
