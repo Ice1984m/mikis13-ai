@@ -83,12 +83,17 @@ public class MainActivity extends Activity {
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
         settings.setDatabaseEnabled(true);
+        settings.setCacheMode(WebSettings.LOAD_DEFAULT);
+        settings.setMediaPlaybackRequiresUserGesture(false);
+        settings.setSupportZoom(true);
+        settings.setBuiltInZoomControls(true);
+        settings.setDisplayZoomControls(false);
         settings.setLoadsImagesAutomatically(true);
         settings.setAllowFileAccess(false);
         settings.setAllowContentAccess(false);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         settings.setUserAgentString(
-            settings.getUserAgentString() + " Mikis13AI-Android/1.0"
+            settings.getUserAgentString() + " Mikis13AI-Android/1.1"
         );
 
         CookieManager.getInstance().setAcceptCookie(true);
@@ -130,6 +135,18 @@ public class MainActivity extends Activity {
                 if (request.isForMainFrame()) {
                     progressBar.setVisibility(View.GONE);
                     webView.setVisibility(View.GONE);
+                    errorMessage.setText(
+                        "Mikis13 AI is tijdelijk niet bereikbaar. " +
+                        "Tik hier om opnieuw te proberen."
+                    );
+
+                    errorMessage.setOnClickListener(v -> {
+                        errorMessage.setVisibility(View.GONE);
+                        webView.setVisibility(View.VISIBLE);
+                        progressBar.setVisibility(View.VISIBLE);
+                        webView.reload();
+                    });
+
                     errorMessage.setVisibility(View.VISIBLE);
                 }
             }

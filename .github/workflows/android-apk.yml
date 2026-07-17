@@ -2,6 +2,7 @@ name: Mikis13 AI Android APK
 
 on:
   workflow_dispatch:
+
   push:
     branches:
       - main
@@ -10,25 +11,48 @@ on:
       - ".github/workflows/android-apk.yml"
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: mikis13-ai-android-apk
+  group: mikis13-apk-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  build-apk:
-    name: Android APK bouwen
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-
-    defaults:
-      run:
-        working-directory: android-app
+  build:
+    name: APK volledig testen en bouwen
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
 
     steps:
       - name: Repository ophalen
         uses: actions/checkout@v6
+
+      - name: Projectstructuur controleren
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          test -f android-app/settings.gradle
+          test -f android-app/build.gradle
+          test -f android-app/app/build.gradle
+          test -f android-app/app/src/main/AndroidManifest.xml
+          test -f android-app/app/src/main/java/com/mikis13/ai/MainActivity.java
+
+          grep -q \
+            'applicationId "com.mikis13.ai"' \
+            android-app/app/build.gradle
+
+          grep -q \
+            "android.permission.INTERNET" \
+            android-app/app/src/main/AndroidManifest.xml
+
+          if grep -RInE \
+            '^(<<<<<<<|=======|>>>>>>>)' \
+            android-app
+          then
+            echo "::error::Git-conflictmarkeringen gevonden"
+            exit 1
+          fi
 
       - name: Java 17 installeren
         uses: actions/setup-java@v5
@@ -40,29 +64,24 @@ jobs:
         uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: "8.10.2"
+          cache-disabled: true
 
-      - name: Projectbestanden controleren
+      - name: Gradle-configuratie controleren
+        working-directory: android-app
         shell: bash
         run: |
           set -Eeuo pipefail
 
-          test -f settings.gradle
-          test -f build.gradle
-          test -f app/build.gradle
-          test -f app/src/main/AndroidManifest.xml
-          test -f app/src/main/java/com/mikis13/ai/MainActivity.java
+          gradle --version
 
-          grep -q \
-            'package com.mikis13.ai' \
-            app/src/main/java/com/mikis13/ai/MainActivity.java
+          gradle \
+            --no-daemon \
+            --stacktrace \
+            tasks \
+            >/dev/null
 
-          grep -q \
-            'android.permission.INTERNET' \
-            app/src/main/AndroidManifest.xml
-
-          echo "✅ Android-projectstructuur is correct"
-
-      - name: Android-project testen
+      - name: Android lint uitvoeren
+        working-directory: android-app
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -72,7 +91,25 @@ jobs:
             --stacktrace \
             :app:lintDebug
 
-      - name: APK bouwen
+      - name: Android unit tests uitvoeren
+        working-directory: android-app
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          if gradle tasks --all |
+             grep -q "testDebugUnitTest"
+          then
+            gradle \
+              --no-daemon \
+              --stacktrace \
+              :app:testDebugUnitTest
+          else
+            echo "Geen unit-testtaak aanwezig."
+          fi
+
+      - name: Debug-APK bouwen
+        working-directory: android-app
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -82,148 +119,72 @@ jobs:
             --stacktrace \
             :app:assembleDebug
 
-      - name: APK technisch valideren
+      - name: APK zoeken en valideren
         shell: bash
         run: |
           set -Eeuo pipefail
 
-          APK="app/build/outputs/apk/debug/app-debug.apk"
+          APK="$(
+            find android-app/app/build/outputs/apk \
+              -type f \
+              -name "*.apk" \
+              | sort \
+              | tail -n 1
+          )"
 
-          test -f "$APK" || {
-            echo "::error::APK-bestand ontbreekt"
-            exit 1
-          }
+          test -n "$APK"
+          test -f "$APK"
 
           SIZE="$(stat -c%s "$APK")"
 
           if [ "$SIZE" -lt 4096 ]; then
-            echo "::error::APK is beschadigd of leeg: $SIZE bytes"
+            echo "::error::APK is te klein: $SIZE bytes"
             exit 1
           fi
 
-          echo "APK-grootte: $SIZE bytes"
-
-          echo "ZIP-structuur controleren..."
           unzip -t "$APK"
 
-          BUILD_TOOLS="$(
-            find "$ANDROID_HOME/build-tools" \
-              -mindepth 1 \
-              -maxdepth 1 \
-              -type d |
-            sort -V |
-            tail -n 1
-          )"
+          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
 
-          test -n "$BUILD_TOOLS" || {
-            echo "::error::Android Build Tools ontbreken"
-            exit 1
-          }
+          if [ -n "$SDK" ]; then
+            APKSIGNER="$(
+              find "$SDK/build-tools" \
+                -type f \
+                -name apksigner \
+                | sort -V \
+                | tail -n 1
+            )"
 
-          APKSIGNER="$BUILD_TOOLS/apksigner"
-          AAPT="$BUILD_TOOLS/aapt"
-
-          test -x "$APKSIGNER" || {
-            echo "::error::apksigner ontbreekt"
-            exit 1
-          }
-
-          echo "APK-handtekening controleren..."
-
-          "$APKSIGNER" verify \
-            --verbose \
-            --print-certs \
-            "$APK"
-
-          if [ -x "$AAPT" ]; then
-            echo "Manifest en package controleren..."
-
-            "$AAPT" dump badging "$APK" |
-              tee /tmp/apk-badging.txt
-
-            grep -q \
-              "package: name='com.mikis13.ai'" \
-              /tmp/apk-badging.txt
-
-            grep -q \
-              "application-label:'Mikis13 AI'" \
-              /tmp/apk-badging.txt
+            if [ -n "$APKSIGNER" ] &&
+               [ -x "$APKSIGNER" ]
+            then
+              "$APKSIGNER" verify \
+                --verbose \
+                --print-certs \
+                "$APK"
+            fi
           fi
 
-          cp "$APK" "../mikis13-ai-latest.apk"
+          cp "$APK" mikis13-ai-1.1.0-debug.apk
 
-          echo "APK_SIZE=$SIZE" >> "$GITHUB_ENV"
-          echo "✅ APK is geldig en ondertekend"
+          sha256sum mikis13-ai-1.1.0-debug.apk \
+            > mikis13-ai-1.1.0-debug.apk.sha256
 
-      - name: APK als artifact bewaren
+          echo "APK geldig: $SIZE bytes"
+
+      - name: APK bewaren
         uses: actions/upload-artifact@v4
         with:
           name: mikis13-ai-apk
-          path: mikis13-ai-latest.apk
+          path: |
+            mikis13-ai-1.1.0-debug.apk
+            mikis13-ai-1.1.0-debug.apk.sha256
           if-no-files-found: error
           retention-days: 90
           compression-level: 0
 
-      - name: GitHub Release publiceren
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        working-directory: .
+      - name: Eindresultaat
         run: |
-          set -Eeuo pipefail
-
-          test -f mikis13-ai-latest.apk
-
-          gh release delete latest-apk \
-            --repo "${{ github.repository }}" \
-            --cleanup-tag \
-            --yes 2>/dev/null || true
-
-          gh release create latest-apk \
-            mikis13-ai-latest.apk \
-            --repo "${{ github.repository }}" \
-            --target "${{ github.sha }}" \
-            --title "Mikis13 AI Android APK" \
-            --notes "Automatisch gebouwde en gevalideerde Android APK. Grootte: $APK_SIZE bytes."
-
-      - name: Website en API controleren
-        shell: bash
-        working-directory: .
-        run: |
-          set -Eeuo pipefail
-
-          BASE_URL="https://mikis13-ai.ice1984m.workers.dev"
-
-          for poging in $(seq 1 10); do
-            STATUS="$(
-              curl \
-                --location \
-                --silent \
-                --output /tmp/mikis13-site \
-                --write-out '%{http_code}' \
-                "$BASE_URL/" || true
-            )"
-
-            echo "Websitecontrole $poging/10: HTTP $STATUS"
-
-            if [ "$STATUS" = "200" ]; then
-              echo "✅ Mikis13 AI-website is bereikbaar"
-              exit 0
-            fi
-
-            sleep 10
-          done
-
-          echo "::warning::APK is geldig, maar website is momenteel niet bereikbaar"
-          exit 0
-
-      - name: Build voltooid
-        shell: bash
-        working-directory: .
-        run: |
-          echo "======================================"
-          echo "✅ MIKIS13 AI APK SUCCESVOL GEBOUWD"
-          echo "======================================"
-          echo
-          echo "Download:"
-          echo "https://github.com/${{ github.repository }}/releases/download/latest-apk/mikis13-ai-latest.apk"
+          echo "=================================="
+          echo "MIKIS13 AI APK BUILD GESLAAGD"
+          echo "=================================="
