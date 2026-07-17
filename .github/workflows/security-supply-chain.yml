@@ -1,0 +1,245 @@
+name: Mikis13 AI veilige APK-build
+
+on:
+  workflow_dispatch:
+
+  push:
+    branches:
+      - main
+    paths:
+      - "android-app/**"
+      - ".github/workflows/security-supply-chain.yml"
+
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "android-app/**"
+      - ".github/workflows/security-supply-chain.yml"
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+  id-token: write
+  attestations: write
+
+concurrency:
+  group: mikis13-secure-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  secrets-scan:
+    name: Geheimen controleren
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Repository ophalen
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Geheime bestanden controleren
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          VERBODEN_BESTANDEN="$(
+            find . \
+              -type f \
+              \( \
+                -name "*.jks" -o \
+                -name "*.keystore" -o \
+                -name "*.p12" -o \
+                -name "*.pfx" -o \
+                -name "*.pem" -o \
+                -name "*.key" -o \
+                -name ".env" \
+              \) \
+              -not -path "./.git/*" \
+              -not -path "./node_modules/*" \
+              -print
+          )"
+
+          if [ -n "$VERBODEN_BESTANDEN" ]; then
+            echo "::error::Geheime of private bestanden gevonden:"
+            echo "$VERBODEN_BESTANDEN"
+            exit 1
+          fi
+
+          echo "✅ Geen geheime bestanden gevonden"
+
+      - name: API-sleutels controleren
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          if grep -RInE \
+            'sk-proj-[A-Za-z0-9_-]{20,}|cfut_[A-Za-z0-9_-]{20,}|BEGIN (RSA|EC|OPENSSH) PRIVATE KEY' \
+            --exclude-dir=.git \
+            --exclude-dir=node_modules \
+            --exclude=package-lock.json \
+            .
+          then
+            echo "::error::Mogelijke API-sleutel of privésleutel gevonden"
+            exit 1
+          fi
+
+          echo "✅ Geen zichtbare API-sleutels gevonden"
+
+  android-build:
+    name: Android APK bouwen
+    needs:
+      - secrets-scan
+
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    defaults:
+      run:
+        working-directory: android-app
+
+    steps:
+      - name: Repository ophalen
+        uses: actions/checkout@v6
+
+      - name: Java 17 installeren
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Gradle installeren
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: "8.10.2"
+
+      - name: Android-project controleren
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          test -f settings.gradle
+          test -f build.gradle
+          test -f app/build.gradle
+          test -f app/src/main/AndroidManifest.xml
+          test -f app/src/main/java/com/mikis13/ai/MainActivity.java
+
+          grep -q \
+            "android.permission.INTERNET" \
+            app/src/main/AndroidManifest.xml
+
+          grep -q \
+            "package com.mikis13.ai" \
+            app/src/main/java/com/mikis13/ai/MainActivity.java
+
+          echo "✅ Android-project is volledig"
+
+      - name: Android lint uitvoeren
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          gradle \
+            --no-daemon \
+            --stacktrace \
+            :app:lintDebug
+
+      - name: Debug-APK bouwen
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          gradle \
+            --no-daemon \
+            --stacktrace \
+            :app:assembleDebug
+
+      - name: APK valideren
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+
+          test -f "$APK" || {
+            echo "::error::APK-bestand ontbreekt"
+            exit 1
+          }
+
+          SIZE="$(stat -c%s "$APK")"
+
+          if [ "$SIZE" -lt 4096 ]; then
+            echo "::error::APK is leeg of beschadigd: $SIZE bytes"
+            exit 1
+          fi
+
+          echo "APK-grootte: $SIZE bytes"
+
+          unzip -t "$APK"
+
+          BUILD_TOOLS="$(
+            find "$ANDROID_HOME/build-tools" \
+              -mindepth 1 \
+              -maxdepth 1 \
+              -type d |
+            sort -V |
+            tail -n 1
+          )"
+
+          test -n "$BUILD_TOOLS" || {
+            echo "::error::Android Build Tools ontbreken"
+            exit 1
+          }
+
+          test -x "$BUILD_TOOLS/apksigner" || {
+            echo "::error::apksigner ontbreekt"
+            exit 1
+          }
+
+          "$BUILD_TOOLS/apksigner" verify \
+            --verbose \
+            --print-certs \
+            "$APK"
+
+          if [ -x "$BUILD_TOOLS/aapt" ]; then
+            "$BUILD_TOOLS/aapt" dump badging "$APK" |
+              tee /tmp/apk-info.txt
+
+            grep -q \
+              "package: name='com.mikis13.ai'" \
+              /tmp/apk-info.txt
+          fi
+
+          cp "$APK" ../mikis13-ai.apk
+
+          cd ..
+          sha256sum mikis13-ai.apk > mikis13-ai.apk.sha256
+
+          echo "✅ APK is geldig"
+
+      - name: APK uploaden
+        uses: actions/upload-artifact@v4
+        with:
+          name: mikis13-ai-secure-apk
+          path: |
+            mikis13-ai.apk
+            mikis13-ai.apk.sha256
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 0
+
+      - name: Buildgegevens attesteren
+        if: github.event_name != 'pull_request'
+        uses: actions/attest-build-provenance@v3
+        with:
+          subject-path: mikis13-ai.apk
+
+      - name: Build voltooid
+        working-directory: .
+        shell: bash
+        run: |
+          echo "======================================="
+          echo "✅ MIKIS13 AI APK-BUILD IS GESLAAGD"
+          echo "======================================="
