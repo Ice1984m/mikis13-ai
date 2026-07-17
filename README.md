@@ -7,12 +7,17 @@ AI-chatwebsite met:
 - automatische publicatie via GitHub Actions
 - beveiligde GitHub Secrets
 
-## Installeren als Mobiele App (PWA & APK) 📱
+## Rechtstreeks Downloaden & Installeren (Android APK) 📱
 
-Je kunt deze AI-assistent nu eenvoudig installeren op je mobiele telefoon (Android & iOS). We hebben een handige installatie-drukknop en PWA-ondersteuning toegevoegd!
+Klik op de knop hieronder om de Mikis13 AI-app direct als `.apk` bestand op je Android-apparaat te downloaden en te installeren:
 
-Zie de complete handleiding voor stappen en instructies om zelf een APK te bouwen:
-👉 **[APK & App Installatie Handleiding (README_APK.md)](./README_APK.md)**
+[![Download APK](https://img.shields.io/badge/Download_Direct-APK-brightgreen?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Ice1984m/mikis13-ai/releases/download/latest/mikis13-ai.apk)
+
+*Opmerking: Als je de app voor de eerste keer downloadt, vraagt je telefoon mogelijk om 'installatie uit onbekende bronnen' toe te staan in je browser of bestandsbeheerder. Zie de complete handleiding voor gedetailleerde stappen: 👉 **[APK & App Installatie Handleiding (README_APK.md)](./README_APK.md)***
+
+## Installeren als Mobiele App (PWA) 🌟
+
+Je kunt deze AI-assistent ook eenvoudig installeren op je mobiele telefoon (Android & iOS) via de browser zonder APK-download. We hebben een handige installatie-drukknop en PWA-ondersteuning toegevoegd! Open de website en tik op **📱 Installeer App**.
 
 ## Repository
 

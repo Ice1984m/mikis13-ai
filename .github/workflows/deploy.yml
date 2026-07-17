@@ -4,6 +4,9 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -18,3 +21,35 @@ jobs:
       - run: npm install --include=optional --no-audit --no-fund
       - run: node --check worker.js
       - run: npx --yes wrangler@latest deploy --config wrangler.toml
+
+      - name: Build Android App (APK) via PWABuilder
+        uses: PWABuilder/pwabuilder-action@v1
+        with:
+          url: "https://mikis13-ai.ice1984m.workers.dev"
+          platforms: "android"
+          output-directory: "action-output"
+
+      - name: Extract APK
+        run: |
+          mkdir -p extracted
+          unzip action-output/*.zip -d extracted || true
+          find extracted -name "*.apk" -exec cp {} ./mikis13-ai.apk \;
+          if [ ! -f ./mikis13-ai.apk ]; then
+            echo "Geen APK gevonden in PWABuilder-output zip!"
+            exit 1
+          fi
+
+      - name: Publish APK to GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          gh release delete latest --yes || true
+          git tag -d latest || true
+          git push origin :refs/tags/latest || true
+          gh release create latest ./mikis13-ai.apk \
+            --title "Mikis13 AI Mobiele App (APK)" \
+            --notes "Klik op de downloadknop hieronder om de nieuwste Mikis13 AI-app direct te downloaden en te installeren op je Android-apparaat." \
+            --target main
+

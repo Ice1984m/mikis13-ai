@@ -1,10 +1,20 @@
 # Mikis13 AI - APK & App Installatie Handleiding 📱
 
-Deze handleiding legt uit hoe je de **Mikis13 AI-assistent** als een app installeert op je Android- of iOS-apparaat, en hoe je zelf een native Android **APK-bestand** kunt bouwen.
+Deze handleiding legt uit hoe je de **Mikis13 AI-assistent** als een app installeert op je Android- of iOS-apparaat.
 
 ---
 
-## Methode 1: Direct installeren via de "Installeer App" knop (PWA / WebAPK) - *Aanbevolen* 🌟
+## Direct Downloaden (Snelste & Makkelijkste manier) 🚀
+
+Je kunt de nieuwste Android APK van de app direct via GitHub downloaden en installeren op je apparaat:
+
+👉 **[Download Direct: mikis13-ai.apk](https://github.com/Ice1984m/mikis13-ai/releases/download/latest/mikis13-ai.apk)**
+
+*Volg daarna simpelweg [Methode 3: Het APK-bestand installeren](#methode-3-het-apk-bestand-installeren-op-je-apparaat-sideloading-) hieronder om de app te installeren.*
+
+---
+
+## Methode 1: Direct installeren via de browser (PWA) - *Zonder APK download* 🌟
 
 Dankzij de Progressive Web App (PWA) ondersteuning kun je de app met één klik installeren zonder handmatig een APK te hoeven downloaden. Op Android wordt deze automatisch omgezet naar een native WebAPK!
 
@@ -24,11 +34,11 @@ Dankzij de Progressive Web App (PWA) ondersteuning kun je de app met één klik 
 
 ---
 
-## Methode 2: Zelf een native Android APK-bestand bouwen 🛠️
+## Methode 2: Zelf een native Android APK-bestand bouwen (Geautomatiseerd via GitHub) 🛠️
 
-Als je een fysiek `.apk`-bestand wilt hebben om te delen of te installeren, kun je dit heel eenvoudig en gratis genereren.
+Ons systeem bouwt en publiceert de APK al automatisch op elke push via GitHub Actions! Maar als je zelf handmatig een APK-bestand wilt genereren, kan dat heel eenvoudig:
 
-### De makkelijkste manier (via PWABuilder):
+### Handmatig bouwen via PWABuilder:
 1. Zorg dat je website live staat (bijvoorbeeld via Cloudflare of GitHub Pages).
 2. Ga op je computer of telefoon naar [PWABuilder.com](https://www.pwabuilder.com/).
 3. Voer de URL van je live website in en klik op **"Start"** of **"Test"**.
