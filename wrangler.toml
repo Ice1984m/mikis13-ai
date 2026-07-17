@@ -1,4 +1,5 @@
 name = "mikis13-ai"
 main = "worker.js"
-compatibility_date = "2026-07-01"
+compatibility_date = "2026-07-17"
 workers_dev = true
+# account_id NIET hier hardcoderen; komt uit CLOUDFLARE_ACCOUNT_ID secret

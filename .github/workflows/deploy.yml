@@ -14,7 +14,6 @@ concurrency:
 
 jobs:
   deploy:
-    name: Publiceren naar Cloudflare
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -24,36 +23,24 @@ jobs:
 
     steps:
       - uses: actions/checkout@v5
-
       - uses: actions/setup-node@v5
         with:
           node-version: "22"
 
       - run: node --version && npm --version
-
       - run: npm install --include=optional --no-audit --no-fund
-
       - run: npx --yes wrangler@latest --version
-
       - run: node --check worker.js
 
-      - name: Check wrangler.toml
-        run: |
-          test -f wrangler.toml || { echo "::error::wrangler.toml ontbreekt"; exit 1; }
-          echo "wrangler.toml gevonden"
-
-      - name: Check secrets aanwezig
+      - name: Sanity check secrets
         run: |
           [ -n "$CLOUDFLARE_API_TOKEN" ] || { echo "::error::CLOUDFLARE_API_TOKEN ontbreekt"; exit 1; }
           [ -n "$CLOUDFLARE_ACCOUNT_ID" ] || { echo "::error::CLOUDFLARE_ACCOUNT_ID ontbreekt"; exit 1; }
+          echo "Len account id: ${#CLOUDFLARE_ACCOUNT_ID}"
 
-      - name: Deploy worker
+      - name: Deploy
         run: npx --yes wrangler@latest deploy --config wrangler.toml
 
-      - name: Set OPENAI_API_KEY secret in Worker
+      - name: Set OPENAI_API_KEY
         if: ${{ env.OPENAI_API_KEY != '' }}
         run: printf '%s' "$OPENAI_API_KEY" | npx --yes wrangler@latest secret put OPENAI_API_KEY
-
-      - name: OPENAI_API_KEY ontbreekt
-        if: ${{ env.OPENAI_API_KEY == '' }}
-        run: echo "OPENAI_API_KEY niet gezet; deploy ging wel door."
