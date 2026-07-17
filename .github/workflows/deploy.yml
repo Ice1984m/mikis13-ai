@@ -23,7 +23,7 @@ jobs:
       - run: npx --yes wrangler@latest deploy --config wrangler.toml
 
       - name: Build Android App (APK) via PWABuilder
-        uses: PWABuilder/pwabuilder-action@v1
+        uses: pwa-builder/pwabuilder-action@v1
         with:
           url: "https://mikis13-ai.ice1984m.workers.dev"
           platforms: "android"
