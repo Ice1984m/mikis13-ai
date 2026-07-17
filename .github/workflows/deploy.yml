@@ -23,48 +23,37 @@ jobs:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
     steps:
-      - name: Repository ophalen
-        uses: actions/checkout@v5
+      - uses: actions/checkout@v5
 
-      - name: Node.js installeren
-        uses: actions/setup-node@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: "22"
 
-      - name: Omgeving tonen
-        run: |
-          node --version
-          npm --version
+      - run: node --version && npm --version
 
-      - name: Dependencies installeren
-        run: npm install --include=optional --no-audit --no-fund
+      - run: npm install --include=optional --no-audit --no-fund
 
-      - name: Wrangler controleren
-        run: npx --yes wrangler@latest --version
+      - run: npx --yes wrangler@latest --version
 
-      - name: JavaScript controleren
-        run: node --check worker.js
+      - run: node --check worker.js
 
-      - name: Wrangler config tonen
+      - name: Check wrangler.toml
         run: |
           test -f wrangler.toml || { echo "::error::wrangler.toml ontbreekt"; exit 1; }
-          echo "---- wrangler.toml ----"
-          cat wrangler.toml
-          echo "-----------------------"
+          echo "wrangler.toml gevonden"
 
-      - name: Secrets controleren
+      - name: Check secrets aanwezig
         run: |
           [ -n "$CLOUDFLARE_API_TOKEN" ] || { echo "::error::CLOUDFLARE_API_TOKEN ontbreekt"; exit 1; }
           [ -n "$CLOUDFLARE_ACCOUNT_ID" ] || { echo "::error::CLOUDFLARE_ACCOUNT_ID ontbreekt"; exit 1; }
-          echo "Secrets aanwezig."
 
-      - name: Worker publiceren
+      - name: Deploy worker
         run: npx --yes wrangler@latest deploy --config wrangler.toml
 
-      - name: OpenAI-secret instellen
+      - name: Set OPENAI_API_KEY secret in Worker
         if: ${{ env.OPENAI_API_KEY != '' }}
         run: printf '%s' "$OPENAI_API_KEY" | npx --yes wrangler@latest secret put OPENAI_API_KEY
 
-      - name: OpenAI-secret ontbreekt (melding)
+      - name: OPENAI_API_KEY ontbreekt
         if: ${{ env.OPENAI_API_KEY == '' }}
-        run: echo "OPENAI_API_KEY ontbreekt; worker wel gedeployed."
+        run: echo "OPENAI_API_KEY niet gezet; deploy ging wel door."
