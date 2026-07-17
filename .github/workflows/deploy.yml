@@ -17,7 +17,6 @@ jobs:
     name: Publiceren naar Cloudflare
     runs-on: ubuntu-latest
     timeout-minutes: 20
-
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -48,26 +47,24 @@ jobs:
 
       - name: Wrangler config tonen
         run: |
+          test -f wrangler.toml || { echo "::error::wrangler.toml ontbreekt"; exit 1; }
           echo "---- wrangler.toml ----"
-          test -f wrangler.toml && cat wrangler.toml || (echo "FOUT: wrangler.toml ontbreekt"; exit 1)
-          echo "------------------------"
+          cat wrangler.toml
+          echo "-----------------------"
 
-      - name: Cloudflare secrets controleren
+      - name: Secrets controleren
         run: |
           [ -n "$CLOUDFLARE_API_TOKEN" ] || { echo "::error::CLOUDFLARE_API_TOKEN ontbreekt"; exit 1; }
           [ -n "$CLOUDFLARE_ACCOUNT_ID" ] || { echo "::error::CLOUDFLARE_ACCOUNT_ID ontbreekt"; exit 1; }
           echo "Secrets aanwezig."
 
-      - name: Worker publiceren (debug)
-        run: |
-          set -x
-          npx --yes wrangler@latest deploy --config wrangler.toml --verbose
+      - name: Worker publiceren
+        run: npx --yes wrangler@latest deploy --config wrangler.toml
 
-      - name: OpenAI-secret in Worker instellen
+      - name: OpenAI-secret instellen
         if: ${{ env.OPENAI_API_KEY != '' }}
-        run: |
-          printf '%s' "$OPENAI_API_KEY" | npx --yes wrangler@latest secret put OPENAI_API_KEY
+        run: printf '%s' "$OPENAI_API_KEY" | npx --yes wrangler@latest secret put OPENAI_API_KEY
 
       - name: OpenAI-secret ontbreekt (melding)
         if: ${{ env.OPENAI_API_KEY == '' }}
-        run: echo "Worker gepubliceerd zonder OPENAI_API_KEY."
+        run: echo "OPENAI_API_KEY ontbreekt; worker wel gedeployed."
