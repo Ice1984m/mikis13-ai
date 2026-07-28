@@ -1,0 +1,78 @@
+name: Certificate and badge sync
+
+on:
+  workflow_dispatch:
+
+  schedule:
+    - cron: "17 6 * * 1"
+      timezone: "Europe/Brussels"
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: certificate-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Repository ophalen
+        uses: actions/checkout@v4
+
+      - name: Python instellen
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Vorige status bewaren
+        shell: bash
+        run: |
+          if [ -f credentials/state.json ]; then
+            cp credentials/state.json /tmp/old-state.json
+          else
+            printf '[]\n' > /tmp/old-state.json
+          fi
+
+      - name: Officiële bronnen controleren
+        run: python scripts/sync-certificates.py
+
+      - name: Nieuwe wijzigingen bepalen
+        id: changes
+        shell: bash
+        run: |
+          if cmp -s /tmp/old-state.json credentials/state.json; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Wijzigingen committen
+        if: steps.changes.outputs.changed == 'true'
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email \
+            "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add \
+            CERTIFICATES.md \
+            credentials/state.json
+
+          git commit -m \
+            "Synchronize official certificate verification sources"
+
+          git push
+
+      - name: Issue maken bij wijziging
+        if: steps.changes.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh issue create \
+            --title "Certificaat- of badgebron gewijzigd" \
+            --body "De automatische controle heeft een wijziging vastgesteld. Controleer CERTIFICATES.md en bevestig handmatig of er werkelijk een nieuwe badge, certificering of recht is toegekend."

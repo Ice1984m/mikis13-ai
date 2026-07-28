@@ -1,25 +1,18 @@
-# Certificaten, badges en programma's
+# Certificaten en badges
 
-Dit bestand registreert alleen prestaties die tot nu toe controleerbaar zijn.
-Het is geen vervanging voor een officieel certificaat of een verifieerbare badge-URL.
+Dit overzicht is automatisch samengesteld uit officiële, openbare
+verificatiepagina's. Een vermelding is geen zelfstandig bewijs zonder
+de gekoppelde officiële bron.
 
-## Bevestigd
+Laatste controle: `2026-07-28T14:19:23+00:00`
 
-- Google Developer Program — lidmaatschap bevestigd via e-mail op 22 juni 2026.
-- Google GEAR — toelating bevestigd via e-mail op 23 juli 2026.
-- Google Play Developer-account onder de naam Mikis13 — accountactiviteit bevestigd.
+Er zijn nog geen officiële openbare verificatielinks ingesteld.
 
-## Nog niet als officieel certificaat bevestigd
+Voeg ze één per regel toe aan:
 
-- Een specifieke Google Cloud Skills Boost-badge.
-- Een Google Cloud beroepscertificering.
-- Een Credly-badge met openbaar verificatienummer.
-- Een downloadbaar PDF-certificaat.
+`credentials/sources.txt`
 
-Zet pas een badge-afbeelding, certificaatnummer of verificatielink in deze repository
-wanneer die rechtstreeks uit het officiële Google-, Credly- of examenaccount komt.
+## Beveiligingsverklaring
 
-## Veiligheidsregel
-
-Plaats nooit privésleutels, API-tokens, wachtwoorden, clientcertificaten met privésleutel,
-P12/PFX-bestanden of andere geheime gegevens in GitHub.
+Deze repository bewaart geen privésleutels, API-tokens, P12/PFX-bestanden,
+Google-inlogcookies of niet-openbare persoonsgegevens.
