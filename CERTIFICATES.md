@@ -4,7 +4,7 @@ Dit overzicht is automatisch samengesteld uit officiële, openbare
 verificatiepagina's. Een vermelding is geen zelfstandig bewijs zonder
 de gekoppelde officiële bron.
 
-Laatste controle: `2026-07-28T14:19:23+00:00`
+Laatste controle: `2026-07-28T14:20:06+00:00`
 
 Er zijn nog geen officiële openbare verificatielinks ingesteld.
 
