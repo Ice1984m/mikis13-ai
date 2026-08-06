@@ -6,9 +6,11 @@ Deze handleiding legt uit hoe je de **Mikis13 AI-assistent** als een app install
 
 ## Direct Downloaden (Snelste & Makkelijkste manier) 🚀
 
-Je kunt de nieuwste Android APK van de app direct via GitHub downloaden en installeren op je apparaat:
+De homepage heeft een knop **"📱 APK direct downloaden"**. Die knop downloadt de nieuwste Android APK rechtstreeks via GitHub:
 
-👉 **[Download Direct: mikis13-ai.apk](https://github.com/Ice1984m/mikis13-ai/releases/download/latest/mikis13-ai.apk)**
+👉 **[APK direct downloaden: mikis13-ai.apk](https://github.com/Ice1984m/mikis13-ai/releases/download/latest/mikis13-ai.apk)**
+
+Na elke geslaagde `main`-build wordt hetzelfde `latest`-bestand automatisch vervangen. Android vraagt daarna om de installatie te bevestigen; een website mag die systeembevestiging niet automatisch omzeilen.
 
 *Volg daarna simpelweg [Methode 3: Het APK-bestand installeren](#methode-3-het-apk-bestand-installeren-op-je-apparaat-sideloading-) hieronder om de app te installeren.*
 
@@ -36,7 +38,7 @@ Dankzij de Progressive Web App (PWA) ondersteuning kun je de app met één klik 
 
 ## Methode 2: Zelf een native Android APK-bestand bouwen (Geautomatiseerd via GitHub) 🛠️
 
-Ons systeem bouwt en publiceert de APK al automatisch op elke push via GitHub Actions! Maar als je zelf handmatig een APK-bestand wilt genereren, kan dat heel eenvoudig:
+Ons systeem bouwt, valideert en publiceert de APK automatisch op elke relevante push naar `main` via GitHub Actions. De workflow plaatst `mikis13-ai.apk` en de SHA-256-controle in de stabiele `latest`-release.
 
 ### Handmatig bouwen via PWABuilder:
 1. Zorg dat je website live staat (bijvoorbeeld via Cloudflare of GitHub Pages).

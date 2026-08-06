@@ -11,7 +11,7 @@ on:
       - ".github/workflows/android-apk.yml"
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: mikis13-apk-${{ github.ref }}
@@ -165,10 +165,9 @@ jobs:
             fi
           fi
 
-          cp "$APK" mikis13-ai-1.1.0-debug.apk
+          cp "$APK" mikis13-ai.apk
 
-          sha256sum mikis13-ai-1.1.0-debug.apk \
-            > mikis13-ai-1.1.0-debug.apk.sha256
+          sha256sum mikis13-ai.apk > mikis13-ai.apk.sha256
 
           echo "APK geldig: $SIZE bytes"
 
@@ -177,11 +176,32 @@ jobs:
         with:
           name: mikis13-ai-apk
           path: |
-            mikis13-ai-1.1.0-debug.apk
-            mikis13-ai-1.1.0-debug.apk.sha256
+            mikis13-ai.apk
+            mikis13-ai.apk.sha256
           if-no-files-found: error
           retention-days: 90
           compression-level: 0
+
+      - name: APK direct beschikbaar maken
+        if: ${{ github.ref == 'refs/heads/main' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          if gh release view latest >/dev/null 2>&1; then
+            gh release upload latest \
+              mikis13-ai.apk \
+              mikis13-ai.apk.sha256 \
+              --clobber
+          else
+            gh release create latest \
+              mikis13-ai.apk \
+              mikis13-ai.apk.sha256 \
+              --title "Mikis13 AI APK (latest)" \
+              --notes "Automatisch gebouwde APK van de laatste main-build."
+          fi
 
       - name: Eindresultaat
         run: |
