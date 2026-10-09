@@ -1,0 +1,68 @@
+#!/data/data/com.termux/files/usr/bin/bash
+set -Eeuo pipefail
+
+MODULE="$HOME/mikis13-ai/termux-local-ai"
+ENGINE="$HOME/.local/src/llama.cpp"
+MODEL_DIR="$HOME/models/mikis13"
+MODEL="$MODEL_DIR/Qwen2.5-Coder-3B-Instruct-Q4_K_M.gguf"
+PROMPT_FILE="$MODULE/prompts/master.txt"
+
+case "${1:-help}" in
+  status)
+    echo "Mikis13 Local AI"
+    echo "Project: $MODULE"
+    echo "Model: $MODEL"
+    if [ -x "$ENGINE/build/bin/llama-cli" ]; then
+      echo "Engine: beschikbaar"
+    else
+      echo "Engine: ontbreekt"
+    fi
+    if [ -s "$MODEL" ]; then
+      echo "Modelbestand: aanwezig"
+    else
+      echo "Modelbestand: nog niet gedownload"
+    fi
+    ;;
+
+  models)
+    find "$MODEL_DIR" -maxdepth 1 -type f \
+      \( -name '*.gguf' -o -name '*.GGUF' \) \
+      -printf '%f (%s bytes)\n' 2>/dev/null || true
+    ;;
+
+  download)
+    mkdir -p "$MODEL_DIR"
+    python -m venv "$HOME/.venv/mikis13-hf"
+    "$HOME/.venv/mikis13-hf/bin/pip" install \
+      --upgrade huggingface_hub
+    "$HOME/.venv/mikis13-hf/bin/hf" download \
+      bartowski/Qwen2.5-Coder-3B-Instruct-GGUF \
+      Qwen2.5-Coder-3B-Instruct-Q4_K_M.gguf \
+      --local-dir "$MODEL_DIR"
+    ;;
+
+  chat)
+    if [ ! -s "$MODEL" ]; then
+      echo "Model ontbreekt. Voer eerst uit:"
+      echo "bash $MODULE/mikis13 download"
+      exit 1
+    fi
+    exec "$ENGINE/build/bin/llama-cli" \
+      -m "$MODEL" -c 4096 -cnv \
+      --system-prompt "$(cat "$PROMPT_FILE")"
+    ;;
+
+  test)
+    bash "$MODULE/tests/smoke.sh"
+    ;;
+
+  help|*)
+    echo "Mikis13 Local AI"
+    echo "Gebruik:"
+    echo "  bash $MODULE/mikis13 status"
+    echo "  bash $MODULE/mikis13 models"
+    echo "  bash $MODULE/mikis13 download"
+    echo "  bash $MODULE/mikis13 chat"
+    echo "  bash $MODULE/mikis13 test"
+    ;;
+esac
