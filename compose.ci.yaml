@@ -1,0 +1,6 @@
+services:
+  check:
+    build:
+      context: .
+      dockerfile: Dockerfile.ci
+    image: mikis13-ci:local
