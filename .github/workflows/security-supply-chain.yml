@@ -220,7 +220,7 @@ jobs:
           echo "✅ APK is geldig"
 
       - name: APK uploaden
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: mikis13-ai-secure-apk
           path: |
