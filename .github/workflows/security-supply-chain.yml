@@ -36,7 +36,7 @@ jobs:
 
     steps:
       - name: Repository ophalen
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -102,7 +102,7 @@ jobs:
 
     steps:
       - name: Repository ophalen
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Java 17 installeren
         uses: actions/setup-java@v6
