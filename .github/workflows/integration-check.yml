@@ -1,0 +1,28 @@
+name: Integration modules validation
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "api/**"
+      - "package.json"
+      - ".github/workflows/integration-check.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  node-validation:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Validate JavaScript syntax
+        run: npm run check
