@@ -3,8 +3,7 @@ name: Mikis13 AI Android build en releasecontrole
 on:
   workflow_dispatch:
   push:
-    branches:
-      - main
+    branches: [main]
     paths:
       - "android-app/**"
       - ".github/workflows/android-apk.yml"
@@ -76,11 +75,11 @@ jobs:
         working-directory: android-app
         run: gradle --no-daemon --stacktrace :app:assembleDebug
 
-      - name: Release AAB bouwen (unsigned validatiebestand)
+      - name: Release AAB bouwen voor structurele validatie
         working-directory: android-app
         run: gradle --no-daemon --stacktrace :app:bundleRelease
 
-      - name: APK en AAB controleren
+      - name: Debug APK en unsigned AAB controleren
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -93,10 +92,9 @@ jobs:
           mkdir -p dist
           cp "$APK" dist/mikis13-ai-debug.apk
           cp "$AAB" dist/mikis13-ai-release-unsigned.aab
-          sha256sum dist/* > dist/SHA256SUMS.txt
 
       - name: Release-keystore instellen
-        if: ${{ steps.signing.outputs.configured == 'true' }}
+        id: signing
         shell: bash
         env:
           KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -105,6 +103,11 @@ jobs:
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           set -Eeuo pipefail
+          if [ -z "$KEYSTORE_B64" ] || [ -z "$STORE_PASSWORD" ] || [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PASSWORD" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "Release signing secrets ontbreken; ondertekende release wordt overgeslagen."
+            exit 0
+          fi
           mkdir -p "$RUNNER_TEMP/signing"
           printf '%s' "$KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/signing/release.jks"
           test -s "$RUNNER_TEMP/signing/release.jks"
@@ -114,16 +117,15 @@ jobs:
             echo "ANDROID_KEY_ALIAS=$KEY_ALIAS"
             echo "ANDROID_KEY_PASSWORD=$KEY_PASSWORD"
           } >> "$GITHUB_ENV"
+          echo "configured=true" >> "$GITHUB_OUTPUT"
 
-      - name: Ondertekende APK en AAB bouwen
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' && secrets.ANDROID_KEYSTORE_PASSWORD != '' && secrets.ANDROID_KEY_ALIAS != '' && secrets.ANDROID_KEY_PASSWORD != '' }}
+      - name: Ondertekende release APK en AAB bouwen
+        if: ${{ steps.signing.outputs.configured == 'true' }}
         working-directory: android-app
-        run: |
-          set -Eeuo pipefail
-          gradle --no-daemon --stacktrace :app:assembleRelease :app:bundleRelease
+        run: gradle --no-daemon --stacktrace :app:assembleRelease :app:bundleRelease
 
       - name: Ondertekende releasebestanden controleren
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' && secrets.ANDROID_KEYSTORE_PASSWORD != '' && secrets.ANDROID_KEY_ALIAS != '' && secrets.ANDROID_KEY_PASSWORD != '' }}
+        if: ${{ steps.signing.outputs.configured == 'true' }}
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -132,12 +134,20 @@ jobs:
           test -s "$APK"
           test -s "$AAB"
           jarsigner -verify -verbose -certs "$AAB"
-          APKSIGNER="$(find "${ANDROID_HOME:-$ANDROID_SDK_ROOT}/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+          test -n "$SDK"
+          APKSIGNER="$(find "$SDK/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
           test -n "$APKSIGNER"
           "$APKSIGNER" verify --verbose "$APK"
           cp "$APK" dist/mikis13-ai-release.apk
           cp "$AAB" dist/mikis13-ai-release.aab
-          (cd dist && sha256sum mikis13-ai-release.apk mikis13-ai-release.aab > RELEASE-SHA256SUMS.txt)
+
+      - name: Checksums maken en buildresultaten bewaren
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          (cd dist && sha256sum *.apk *.aab > SHA256SUMS.txt)
+        # Unsigned and signed artifacts are explicitly distinguished by filename.
 
       - name: Buildresultaten bewaren
         uses: actions/upload-artifact@v4
