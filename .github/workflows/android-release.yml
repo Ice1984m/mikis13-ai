@@ -28,12 +28,10 @@ jobs:
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           set -Eeuo pipefail
-          for name in KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
-            if [ -z "${!name}" ]; then
-              echo "::error::Missing GitHub Actions secret: ${name/KEYSTORE_BASE64/ANDROID_KEYSTORE_BASE64}"
-              exit 1
-            fi
-          done
+          test -n "$KEYSTORE_BASE64" || { echo "::error::Missing ANDROID_KEYSTORE_BASE64"; exit 1; }
+          test -n "$KEYSTORE_PASSWORD" || { echo "::error::Missing ANDROID_KEYSTORE_PASSWORD"; exit 1; }
+          test -n "$KEY_ALIAS" || { echo "::error::Missing ANDROID_KEY_ALIAS"; exit 1; }
+          test -n "$KEY_PASSWORD" || { echo "::error::Missing ANDROID_KEY_PASSWORD"; exit 1; }
           mkdir -p "$RUNNER_TEMP/android-signing"
           printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/android-signing/upload-keystore.jks"
           test -s "$RUNNER_TEMP/android-signing/upload-keystore.jks"
@@ -84,7 +82,9 @@ jobs:
           test -s "$AAB"
           unzip -t "$APK"
           unzip -t "$AAB"
-          APKSIGNER="$(find "${ANDROID_HOME:-$ANDROID_SDK_ROOT}/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+          test -n "$SDK"
+          APKSIGNER="$(find "$SDK/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
           test -n "$APKSIGNER"
           "$APKSIGNER" verify --verbose --print-certs "$APK"
           jarsigner -verify -verbose -certs "$AAB"
