@@ -1,0 +1,112 @@
+name: Mikis13 AI signed Android release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mikis13-android-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Test, sign and package APK + AAB
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Validate required signing secrets
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -Eeuo pipefail
+          for name in KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing GitHub Actions secret: ${name/KEYSTORE_BASE64/ANDROID_KEYSTORE_BASE64}"
+              exit 1
+            fi
+          done
+          mkdir -p "$RUNNER_TEMP/android-signing"
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/android-signing/upload-keystore.jks"
+          test -s "$RUNNER_TEMP/android-signing/upload-keystore.jks"
+          chmod 600 "$RUNNER_TEMP/android-signing/upload-keystore.jks"
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: "8.10.2"
+
+      - name: Validate Android project
+        working-directory: android-app
+        run: |
+          set -Eeuo pipefail
+          test -f settings.gradle
+          test -f build.gradle
+          test -f app/build.gradle
+          test -f app/src/main/AndroidManifest.xml
+          test -f app/src/main/java/com/mikis13/ai/MainActivity.java
+          gradle --no-daemon --stacktrace tasks >/dev/null
+
+      - name: Run Android lint and unit tests
+        working-directory: android-app
+        run: |
+          set -Eeuo pipefail
+          gradle --no-daemon --stacktrace :app:lintDebug
+          gradle --no-daemon --stacktrace :app:testDebugUnitTest
+
+      - name: Build signed release APK and AAB
+        working-directory: android-app
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/android-signing/upload-keystore.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -Eeuo pipefail
+          gradle --no-daemon --stacktrace :app:assembleRelease :app:bundleRelease
+          APK="app/build/outputs/apk/release/app-release.apk"
+          AAB="app/build/outputs/bundle/release/app-release.aab"
+          test -s "$APK"
+          test -s "$AAB"
+          unzip -t "$APK"
+          unzip -t "$AAB"
+          APKSIGNER="$(find "${ANDROID_HOME:-$ANDROID_SDK_ROOT}/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          test -n "$APKSIGNER"
+          "$APKSIGNER" verify --verbose --print-certs "$APK"
+          jarsigner -verify -verbose -certs "$AAB"
+          mkdir -p ../release-output
+          cp "$APK" ../release-output/mikis13-ai-1.1.0-release.apk
+          cp "$AAB" ../release-output/mikis13-ai-1.1.0-release.aab
+          cd ../release-output
+          sha256sum mikis13-ai-1.1.0-release.apk mikis13-ai-1.1.0-release.aab > SHA256SUMS.txt
+
+      - name: Upload signed release artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: mikis13-ai-signed-release
+          path: |
+            release-output/mikis13-ai-1.1.0-release.apk
+            release-output/mikis13-ai-1.1.0-release.aab
+            release-output/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+      - name: Release summary
+        run: |
+          echo "Signed APK and AAB built and verified."
+          echo "Artifacts are available in this workflow run."
