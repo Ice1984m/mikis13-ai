@@ -2,6 +2,11 @@ plugins {
     id "com.android.application"
 }
 
+def releaseStorePath = System.getenv("ANDROID_KEYSTORE_PATH")
+def releaseStorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+def releaseKeyAlias = System.getenv("ANDROID_KEY_ALIAS")
+def releaseKeyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+
 android {
     namespace "com.mikis13.ai"
     compileSdk 35
@@ -14,8 +19,26 @@ android {
         versionName "1.1.0"
     }
 
-    buildTypes {
+    signingConfigs {
         release {
+            // Supply the upload keystore and passwords through CI environment
+            // variables. Never commit the keystore or credentials to Git.
+            if (releaseStorePath && releaseStorePassword &&
+                releaseKeyAlias && releaseKeyPassword) {
+                storeFile file(releaseStorePath)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
+    }
+
+    buildTypes {
+        debug {
+            // Android's standard debug signing is used for local/debug builds.
+        }
+        release {
+            signingConfig signingConfigs.release
             minifyEnabled false
             shrinkResources false
             proguardFiles(
