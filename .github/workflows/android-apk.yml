@@ -1,8 +1,7 @@
-name: Mikis13 AI Android APK
+name: Mikis13 AI Android build en releasecontrole
 
 on:
   workflow_dispatch:
-
   push:
     branches:
       - main
@@ -14,177 +13,134 @@ permissions:
   contents: read
 
 concurrency:
-  group: mikis13-apk-${{ github.ref }}
+  group: mikis13-android-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  build:
-    name: APK volledig testen en bouwen
+  android:
+    name: Testen en APK/AAB bouwen
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
-
+    timeout-minutes: 50
     steps:
       - name: Repository ophalen
-        uses: actions/checkout@v6
-
-      - name: Projectstructuur controleren
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-
-          test -f android-app/settings.gradle
-          test -f android-app/build.gradle
-          test -f android-app/app/build.gradle
-          test -f android-app/app/src/main/AndroidManifest.xml
-          test -f android-app/app/src/main/java/com/mikis13/ai/MainActivity.java
-
-          grep -q \
-            'applicationId "com.mikis13.ai"' \
-            android-app/app/build.gradle
-
-          grep -q \
-            "android.permission.INTERNET" \
-            android-app/app/src/main/AndroidManifest.xml
-
-          if grep -RInE \
-            '^(<<<<<<<|=======|>>>>>>>)' \
-            android-app
-          then
-            echo "::error::Git-conflictmarkeringen gevonden"
-            exit 1
-          fi
+        uses: actions/checkout@v4
 
       - name: Java 17 installeren
-        uses: actions/setup-java@v6
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
 
       - name: Gradle installeren
-        uses: gradle/actions/setup-gradle@v6
+        uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.10.2"
-          cache-disabled: true
 
-      - name: Gradle-configuratie controleren
+      - name: Android SDK installeren
+        uses: android-actions/setup-android@v3
+
+      - name: Projectconfiguratie controleren
         working-directory: android-app
         shell: bash
         run: |
           set -Eeuo pipefail
+          test -f settings.gradle
+          test -f build.gradle
+          test -f app/build.gradle
+          test -f app/src/main/AndroidManifest.xml
+          test -f app/src/main/java/com/mikis13/ai/MainActivity.java
+          grep -q 'applicationId "com.mikis13.ai"' app/build.gradle
+          grep -q 'compileSdk 35' app/build.gradle
+          grep -q 'targetSdk 35' app/build.gradle
 
-          gradle --version
-
-          gradle \
-            --no-daemon \
-            --stacktrace \
-            tasks \
-            >/dev/null
+      - name: Gradle-configuratie evalueren
+        working-directory: android-app
+        run: gradle --no-daemon --stacktrace tasks
 
       - name: Android lint uitvoeren
         working-directory: android-app
-        shell: bash
-        run: |
-          set -Eeuo pipefail
+        run: gradle --no-daemon --stacktrace :app:lintDebug
 
-          gradle \
-            --no-daemon \
-            --stacktrace \
-            :app:lintDebug
-
-      - name: Android unit tests uitvoeren
+      - name: Unit-tests uitvoeren wanneer aanwezig
         working-directory: android-app
         shell: bash
         run: |
           set -Eeuo pipefail
-
-          if gradle tasks --all |
-             grep -q "testDebugUnitTest"
-          then
-            gradle \
-              --no-daemon \
-              --stacktrace \
-              :app:testDebugUnitTest
+          if gradle --no-daemon tasks --all | grep -q 'testDebugUnitTest'; then
+            gradle --no-daemon --stacktrace :app:testDebugUnitTest
           else
-            echo "Geen unit-testtaak aanwezig."
+            echo "Geen Android unit-tests geconfigureerd; build- en lintcontroles blijven verplicht."
           fi
 
-      - name: Debug-APK bouwen
+      - name: Debug APK bouwen
         working-directory: android-app
+        run: gradle --no-daemon --stacktrace :app:assembleDebug
+
+      - name: Release AAB bouwen (unsigned validatiebestand)
+        working-directory: android-app
+        run: gradle --no-daemon --stacktrace :app:bundleRelease
+
+      - name: APK en AAB controleren
         shell: bash
         run: |
           set -Eeuo pipefail
-
-          gradle \
-            --no-daemon \
-            --stacktrace \
-            :app:assembleDebug
-
-      - name: APK zoeken en valideren
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-
-          APK="$(
-            find android-app/app/build/outputs/apk \
-              -type f \
-              -name "*.apk" \
-              | sort \
-              | tail -n 1
-          )"
-
-          test -n "$APK"
-          test -f "$APK"
-
-          SIZE="$(stat -c%s "$APK")"
-
-          if [ "$SIZE" -lt 4096 ]; then
-            echo "::error::APK is te klein: $SIZE bytes"
-            exit 1
-          fi
-
+          APK="android-app/app/build/outputs/apk/debug/app-debug.apk"
+          AAB="android-app/app/build/outputs/bundle/release/app-release.aab"
+          test -s "$APK"
+          test -s "$AAB"
           unzip -t "$APK"
+          unzip -t "$AAB"
+          mkdir -p dist
+          cp "$APK" dist/mikis13-ai-debug.apk
+          cp "$AAB" dist/mikis13-ai-release-unsigned.aab
+          sha256sum dist/* > dist/SHA256SUMS.txt
 
-          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
-
-          if [ -n "$SDK" ]; then
-            APKSIGNER="$(
-              find "$SDK/build-tools" \
-                -type f \
-                -name apksigner \
-                | sort -V \
-                | tail -n 1
-            )"
-
-            if [ -n "$APKSIGNER" ] &&
-               [ -x "$APKSIGNER" ]
-            then
-              "$APKSIGNER" verify \
-                --verbose \
-                --print-certs \
-                "$APK"
-            fi
-          fi
-
-          cp "$APK" mikis13-ai-1.1.0-debug.apk
-
-          sha256sum mikis13-ai-1.1.0-debug.apk \
-            > mikis13-ai-1.1.0-debug.apk.sha256
-
-          echo "APK geldig: $SIZE bytes"
-
-      - name: APK bewaren
-        uses: actions/upload-artifact@v7
-        with:
-          name: mikis13-ai-apk
-          path: |
-            mikis13-ai-1.1.0-debug.apk
-            mikis13-ai-1.1.0-debug.apk.sha256
-          if-no-files-found: error
-          retention-days: 90
-          compression-level: 0
-
-      - name: Eindresultaat
+      - name: Release-keystore instellen
+        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' && secrets.ANDROID_KEYSTORE_PASSWORD != '' && secrets.ANDROID_KEY_ALIAS != '' && secrets.ANDROID_KEY_PASSWORD != '' }}
+        shell: bash
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          echo "=================================="
-          echo "MIKIS13 AI APK BUILD GESLAAGD"
-          echo "=================================="
+          set -Eeuo pipefail
+          mkdir -p "$RUNNER_TEMP/signing"
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/signing/release.jks"
+          test -s "$RUNNER_TEMP/signing/release.jks"
+          {
+            echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/signing/release.jks"
+            echo "ANDROID_KEYSTORE_PASSWORD=$STORE_PASSWORD"
+            echo "ANDROID_KEY_ALIAS=$KEY_ALIAS"
+            echo "ANDROID_KEY_PASSWORD=$KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+
+      - name: Ondertekende APK en AAB bouwen
+        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' && secrets.ANDROID_KEYSTORE_PASSWORD != '' && secrets.ANDROID_KEY_ALIAS != '' && secrets.ANDROID_KEY_PASSWORD != '' }}
+        working-directory: android-app
+        run: |
+          set -Eeuo pipefail
+          gradle --no-daemon --stacktrace :app:assembleRelease :app:bundleRelease
+
+      - name: Ondertekende releasebestanden controleren
+        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' && secrets.ANDROID_KEYSTORE_PASSWORD != '' && secrets.ANDROID_KEY_ALIAS != '' && secrets.ANDROID_KEY_PASSWORD != '' }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          APK="android-app/app/build/outputs/apk/release/app-release.apk"
+          AAB="android-app/app/build/outputs/bundle/release/app-release.aab"
+          test -s "$APK"
+          test -s "$AAB"
+          jarsigner -verify -verbose -certs "$AAB"
+          apksigner verify --verbose "$APK"
+          cp "$APK" dist/mikis13-ai-release.apk
+          cp "$AAB" dist/mikis13-ai-release.aab
+          (cd dist && sha256sum mikis13-ai-release.apk mikis13-ai-release.aab > RELEASE-SHA256SUMS.txt)
+
+      - name: Buildresultaten bewaren
+        uses: actions/upload-artifact@v4
+        with:
+          name: mikis13-ai-android-build
+          path: dist/
+          if-no-files-found: error
+          retention-days: 30
