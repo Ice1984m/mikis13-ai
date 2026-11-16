@@ -32,3 +32,22 @@ Zonder signing secrets bouwt de workflow een debug-APK en een unsigned release-A
 ## Google Play
 
 De AAB is pas klaar voor Play-upload wanneer de workflow de ondertekende releasebestanden heeft geproduceerd. Google Play App Signing en de Play Console-upload key moeten in Play Console worden ingesteld. Publiceren gebeurt afzonderlijk na controle van store listing, privacyverklaring, content rating, data safety en test-track vereisten.
+
+
+## Google Cloud / Google Play Console voorbereiden
+
+1. Gebruik het Google-account dat eigenaar/beheerder is van de Play Console.
+2. Open Google Cloud Console en maak of selecteer het project dat voor Mikis13 AI wordt gebruikt.
+3. Schakel **Google Play Android Developer API** in via APIs & Services → Library.
+4. Maak in IAM & Admin → Service Accounts een aparte service-account aan voor CI-publicatie.
+5. Maak een JSON-sleutel aan en voeg de volledige JSON-inhoud als GitHub Actions repository secret `PLAY_SERVICE_ACCOUNT_JSON` toe. Bewaar het JSON-bestand zelf niet in Git.
+6. Open Google Play Console → Users and permissions → Invite new users. Nodig het service-account e-mailadres uit en geef alleen app-specifieke rechten voor releases naar de Internal testing track.
+7. Maak de app in Play Console aan met exact pakket-ID `com.mikis13.ai`; voltooi app-toegang, store listing, privacy policy, Data safety, content rating en doelgroep.
+8. Start eerst uitsluitend een Internal testing-release. Publicatie naar Production blijft een afzonderlijke handmatige beslissing.
+
+## Play-upload secrets
+
+Naast de vier Android signing secrets is voor de interne Play-upload vereist:
+- `PLAY_SERVICE_ACCOUNT_JSON`: de volledige service-account JSON-tekst.
+
+De workflow mag pas een Play-upload doen nadat een ondertekende AAB is gebouwd. Deel nooit de service-account JSON of de upload-keystore in chat, issues, commits of artifacts.
