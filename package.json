@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "deploy": "wrangler deploy",
-    "check": "node --check api/chat.js"
+    "check": "node --check api/chat.js && node --check src/worker.js && node --check src/integrations.js"
   },
   "devDependencies": {
     "wrangler": "^4.158.0"

@@ -1,3 +1,5 @@
+import { getIntegrationStatus } from "./integrations.js";
+
 const WINDOW_MS = 60_000;
 const MAX_REQUESTS = 12;
 const requestCounters = new Map();
@@ -518,7 +520,18 @@ self.addEventListener("fetch", (e) => {
         ) {
             return json({
                 online: true,
-                service: "Mikis13 AI"
+                service: "Mikis13 AI",
+                integrations: getIntegrationStatus(env)
+            });
+        }
+
+        if (
+            request.method === "GET" &&
+            url.pathname === "/api/integrations"
+        ) {
+            return json({
+                integrations: getIntegrationStatus(env),
+                note: "OAuth-verbindingen zijn pas actief nadat Google Cloud OAuth en de beveiligde tokenopslag zijn ingesteld."
             });
         }
 
@@ -541,6 +554,17 @@ self.addEventListener("fetch", (e) => {
             return json({
                 error: "De OpenAI API-key ontbreekt op de server."
             }, 500);
+        }
+
+        const contentType = request.headers.get("Content-Type") || "";
+        const contentLength = Number(request.headers.get("Content-Length") || 0);
+
+        if (!contentType.toLowerCase().includes("application/json")) {
+            return json({ error: "Content-Type moet application/json zijn." }, 415);
+        }
+
+        if (contentLength > 64 * 1024) {
+            return json({ error: "Verzoek is groter dan 64 KB." }, 413);
         }
 
         let body;
