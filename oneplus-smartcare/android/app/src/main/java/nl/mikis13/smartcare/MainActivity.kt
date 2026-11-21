@@ -23,7 +23,9 @@ class MainActivity : Activity() {
     private lateinit var status: TextView
     private var selectedUri: Uri? = null
     private var selectedName = "selected-file"
+    private var pendingDecrypted: ByteArray? = null
     private val pickRequest = 4101
+    private val saveRequest = 4102
     private val maxBytes = 25L * 1024L * 1024L
     private val keyAlias = "oneplus-smartcare-aes-gcm-v1"
 
@@ -47,6 +49,7 @@ class MainActivity : Activity() {
         column.addView(makeButton("Bestand kiezen") { chooseFile() })
         column.addView(makeButton("SHA-256 berekenen") { calculateHash() })
         column.addView(makeButton("Versleutelde kopie maken") { encryptCopy() })
+        column.addView(makeButton("Versleutelde kopie herstellen") { decryptCopy() })
         column.addView(TextView(this).apply {
             text = "\nPrivacy: geen netwerktoegang, geen automatische scans en geen verwijderacties. Versleutelde kopieën worden in de privé-opslag van deze app bewaard."
             textSize = 13f
@@ -77,7 +80,19 @@ class MainActivity : Activity() {
             val uri = data?.data ?: return
             selectedUri = uri
             selectedName = queryName(uri) ?: "selected-file"
-            status.text = "Geselecteerd: $selectedName\nBronbestand wordt alleen gelezen."
+            status.text = "Geselecteerd: $selectedName\\nBronbestand wordt alleen gelezen."
+        } else if (requestCode == saveRequest && resultCode == RESULT_OK) {
+            val uri = data?.data
+            val plain = pendingDecrypted
+            if (uri != null && plain != null) {
+                contentResolver.openOutputStream(uri)?.use { it.write(plain) }
+                    ?: error("Hersteld bestand kon niet worden opgeslagen.")
+                pendingDecrypted = null
+                status.text = "Herstel voltooid. Het herstelde bestand is opgeslagen."
+            } else {
+                pendingDecrypted = null
+                status.text = "Opslaan geannuleerd. Er is niets gewijzigd."
+            }
         }
     }
 
@@ -145,6 +160,29 @@ class MainActivity : Activity() {
             stream.write(encrypted)
         }
         status.text = "Versleutelde kopie aangemaakt in privé-opslag:\n${output.name}\n\nOrigineel niet gewijzigd. Bewaar een reservekopie. De Keystore-sleutel is niet exporteerbaar."
+    }
+
+    private fun decryptCopy() = safely {
+        val container = readSelected()
+        require(container.size > 17) { "Dit bestand is te klein voor SmartCare-versleuteling." }
+        require(container.copyOfRange(0, 4).contentEquals(byteArrayOf(0x53, 0x43, 0x53, 0x31))) {
+            "Bestandsformaat niet herkend. Kies een .scs.enc-bestand van SmartCare."
+        }
+        val ivLength = container[4].toInt() and 0xff
+        require(ivLength == 12 && container.size > 5 + ivLength) { "Ongeldige versleutelingsheader." }
+        val iv = container.copyOfRange(5, 5 + ivLength)
+        val ciphertext = container.copyOfRange(5 + ivLength, container.size)
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.DECRYPT_MODE, getOrCreateKey(), javax.crypto.spec.GCMParameterSpec(128, iv))
+        pendingDecrypted = cipher.doFinal(ciphertext)
+        val title = selectedName.removeSuffix(".scs.enc").take(70) + ".restored"
+        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "application/octet-stream"
+            putExtra(Intent.EXTRA_TITLE, title)
+        }
+        status.text = "Bestand ontsleuteld. Kies nu een locatie om de herstelde kopie op te slaan."
+        startActivityForResult(intent, saveRequest)
     }
 
     private fun safely(action: () -> Unit) {
