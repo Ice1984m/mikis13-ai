@@ -1,4 +1,5 @@
 import { getIntegrationStatus } from "./integrations.js";
+import { PAYLOAD_PAGE } from "./payload-page.js";
 
 const WINDOW_MS = 60_000;
 const MAX_REQUESTS = 12;
@@ -448,6 +449,12 @@ function extractText(data) {
 export default {
     async fetch(request, env) {
         const url = new URL(request.url);
+
+        if (request.method === "GET" && url.pathname === "/payload-chat") {
+            return new Response(PAYLOAD_PAGE, {
+                headers: { "Content-Type": "text/html; charset=UTF-8", "Cache-Control": "no-cache" }
+            });
+        }
 
         if (request.method === "GET" && url.pathname === "/") {
             return new Response(PAGE, {
