@@ -75,8 +75,13 @@ jobs:
         run: |
           set -Eeuo pipefail
 
+          PFX='sk-proj-'
+          CF='cfut_'
+          KEY_BEGIN='BEGIN '
+          KEY_MIDDLE='(RSA|EC|OPENSSH)'
+          KEY_END=' PRIVATE KEY'
           if grep -RInE \
-            'sk-proj-[A-Za-z0-9_-]{20,}|cfut_[A-Za-z0-9_-]{20,}|BEGIN (RSA|EC|OPENSSH) PRIVATE KEY' \
+            "${PFX}[A-Za-z0-9_-]{20,}|${CF}[A-Za-z0-9_-]{20,}|${KEY_BEGIN}${KEY_MIDDLE}${KEY_END}" \
             --exclude-dir=.git \
             --exclude-dir=node_modules \
             --exclude=package-lock.json \
