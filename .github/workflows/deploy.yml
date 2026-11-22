@@ -28,7 +28,7 @@ jobs:
 
     steps:
       - name: Repository ophalen
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Node.js installeren
         uses: actions/setup-node@v6
@@ -96,7 +96,7 @@ jobs:
 
     steps:
       - name: Repository ophalen
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Node.js installeren
         uses: actions/setup-node@v6
