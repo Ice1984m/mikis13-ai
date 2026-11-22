@@ -2,6 +2,7 @@ package com.mikis13.ai;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.net.Uri;
@@ -14,6 +15,8 @@ import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
+import android.webkit.JavascriptInterface;
+import android.widget.Toast;
 import android.webkit.WebViewClient;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
@@ -92,6 +95,8 @@ public class MainActivity extends Activity {
         settings.setAllowFileAccess(false);
         settings.setAllowContentAccess(false);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+        webView.addJavascriptInterface(new TermuxBridge(), "AndroidTermux");
+
         settings.setUserAgentString(
             settings.getUserAgentString() + " Mikis13AI-Android/1.1"
         );
@@ -210,6 +215,75 @@ public class MainActivity extends Activity {
             webView.goBack();
         } else {
             super.onBackPressed();
+        }
+    }
+
+
+    /**
+     * Fixed allow-list bridge. It never accepts shell text or arbitrary paths from JavaScript.
+     * Termux must be installed and "Allow external apps" enabled by the device owner.
+     */
+    private final class TermuxBridge {
+        @JavascriptInterface
+        public void runTask(String taskId) {
+            final String command;
+            final String[] args;
+            final String title;
+            switch (taskId) {
+                case "device":
+                    command = "/data/data/com.termux/files/usr/bin/termux-info";
+                    args = new String[]{};
+                    title = "Toestelinfo";
+                    break;
+                case "identity":
+                    command = "/data/data/com.termux/files/usr/bin/id";
+                    args = new String[]{};
+                    title = "Gebruikers-ID";
+                    break;
+                case "storage":
+                    command = "/data/data/com.termux/files/usr/bin/df";
+                    args = new String[]{"-h"};
+                    title = "Opslagstatus";
+                    break;
+                case "network":
+                    command = "/data/data/com.termux/files/usr/bin/uname";
+                    args = new String[]{"-a"};
+                    title = "Systeeminfo";
+                    break;
+                default:
+                    runOnUiThread(() -> Toast.makeText(
+                        MainActivity.this,
+                        "Deze opdracht staat niet op de toegestane lijst.",
+                        Toast.LENGTH_LONG
+                    ).show());
+                    return;
+            }
+
+            runOnUiThread(() -> new AlertDialog.Builder(MainActivity.this)
+                .setTitle("Termux-opdracht goedkeuren?")
+                .setMessage(title + "\\n\\nVaste opdracht: " + command
+                    + "\\n\\nDeze opdracht opent Termux op dit toestel. Er wordt geen vrije shelltekst uitgevoerd.")
+                .setNegativeButton("Annuleren", (dialog, which) -> dialog.dismiss())
+                .setPositiveButton("Goedkeuren en uitvoeren", (dialog, which) -> {
+                    try {
+                        Intent intent = new Intent("com.termux.RUN_COMMAND");
+                        intent.setPackage("com.termux");
+                        intent.putExtra("com.termux.RUN_COMMAND_PATH", command);
+                        intent.putExtra("com.termux.RUN_COMMAND_ARGUMENTS", args);
+                        intent.putExtra("com.termux.RUN_COMMAND_WORKDIR",
+                            "/data/data/com.termux/files/home");
+                        intent.putExtra("com.termux.RUN_COMMAND_BACKGROUND", false);
+                        startService(intent);
+                        Toast.makeText(MainActivity.this,
+                            "Opdracht doorgestuurd naar Termux.",
+                            Toast.LENGTH_LONG).show();
+                    } catch (Exception e) {
+                        Toast.makeText(MainActivity.this,
+                            "Termux niet beschikbaar. Installeer Termux en schakel externe opdrachten in.",
+                            Toast.LENGTH_LONG).show();
+                    }
+                })
+                .show());
         }
     }
 
