@@ -24,7 +24,7 @@ import android.widget.TextView;
 
 public class MainActivity extends Activity {
 
-    private static final String APP_URL = "https://mikis13-ai.ice1984m.workers.dev";
+    private static final String APP_URL = "https://mikis13-ai.ice1984m.workers.dev/payload-chat";
 
     private WebView webView;
     private ProgressBar progressBar;
