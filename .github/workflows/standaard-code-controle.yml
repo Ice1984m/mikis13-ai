@@ -23,7 +23,7 @@ jobs:
 
     steps:
       - name: Repository ophalen
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Node.js installeren
         if: ${{ hashFiles('package.json') != '' }}
